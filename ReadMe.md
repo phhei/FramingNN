@@ -41,6 +41,8 @@ Card, Dallas, et al. "The media frames corpus: Annotations of frames across issu
 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on
 Natural Language Processing (Volume 2: Short Papers). 2015.
 
+Unfortunately, we can't provide the dataset in this repository due to license issues.
+
 ### Important files for evaluation
 
 In principle, there is a pre-defined step: the creation of the dataset and then the evaluation on it.
@@ -97,9 +99,9 @@ To this end, ``frames=None`` and ``one_hot_output_clusters`` should be defined w
 
 The semantic clustering is activated by default.
 
-### Further parameters for both settings (singe and multi-task)
+### Further parameters for both settings (single and cross-parallel-dataset)
 
-in multi-task-setting, the following parameters are applied to each task input and output.
+in cross-parallel-dataset setting, the following parameters are applied to each task input and output.
 
 #### ``max_seq_len``
 
@@ -153,7 +155,7 @@ We offer three neural net architectures:
 
 The used dataset
 
-### Further parameters for the multi-task-setting
+### Further parameters for the cross-parallel-dataset setting
 
 #### The other meaning of ``frames``
 
