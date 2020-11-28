@@ -1,0 +1,20 @@
+2020-07-29 14:45:48.243 | INFO     | __main__:<module>:102 - Collected 43 tuples now with 430 elements in total
+2020-07-29 14:45:48.243 | INFO     | __main__:<module>:105 - 13 out of 14 user frames are without a generic label!
+2020-07-29 14:45:48.243 | WARNING  | __main__:<module>:108 - We provide the generic frame distribution now:
+2020-07-29 14:45:48.243 | WARNING  | __main__:<module>:116 - ECONOMIC didn't occur as mapped generic frame!
+2020-07-29 14:45:48.243 | WARNING  | __main__:<module>:116 - CAPACITY AND RESOURCES didn't occur as mapped generic frame!
+2020-07-29 14:45:48.243 | WARNING  | __main__:<module>:116 - MORALITY didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - FAIRNESS AND EQUALITY didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - LEGALITY, CONSTITUTIONALITY AND JURISPRUDENCE didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - POLICY PRESCRIPTION AND EVALUATION didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - CRIME AND PUNISHMENT didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - SECURITY AND DEFENSE didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - HEALTH AND SAFETY didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - QUALITY OF LIFE didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - CULTURAL IDENTITY didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | INFO     | __main__:<module>:113 - PUBLIC OPINION : 1 user labels which contain 1 arguments: public opinion
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - POLITICAL didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | WARNING  | __main__:<module>:116 - EXTERNAL REGULATION AND REPUTATION didn't occur as mapped generic frame!
+2020-07-29 14:45:48.253 | INFO     | __main__:<module>:121 - UNKNOWN (no fitting generic label match) : 13 user labels which contain 42 arguments: workers; choice; protecting non-smokers; odor; assisting quiting; smoking quantities; businesses; protecting smokers; corporate responsibility; feasibility; harming to others; tobacco ads; tobacco anti-adverts
+2020-07-29 14:45:48.253 | INFO     | __main__:<module>:135 - Write Corpora\Webis-argument-framing-smoking_out.csv
+2020-07-29 14:45:48.253 | INFO     | __main__:<module>:143 - Finished Corpora\Webis-argument-framing-smoking_out.csv ...

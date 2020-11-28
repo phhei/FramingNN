@@ -1,0 +1,20 @@
+2020-07-29 14:44:46.241 | INFO     | __main__:<module>:102 - Collected 281 tuples now with 2810 elements in total
+2020-07-29 14:44:46.241 | INFO     | __main__:<module>:105 - 41 out of 56 user frames are without a generic label!
+2020-07-29 14:44:46.241 | WARNING  | __main__:<module>:108 - We provide the generic frame distribution now:
+2020-07-29 14:44:46.241 | INFO     | __main__:<module>:113 - ECONOMIC : 2 user labels which contain 6 arguments: costs; economics
+2020-07-29 14:44:46.241 | WARNING  | __main__:<module>:116 - CAPACITY AND RESOURCES didn't occur as mapped generic frame!
+2020-07-29 14:44:46.241 | INFO     | __main__:<module>:113 - MORALITY : 2 user labels which contain 29 arguments: religion; morality
+2020-07-29 14:44:46.243 | INFO     | __main__:<module>:113 - FAIRNESS AND EQUALITY : 3 user labels which contain 26 arguments: equality; rights; civil rights
+2020-07-29 14:44:46.243 | WARNING  | __main__:<module>:116 - LEGALITY, CONSTITUTIONALITY AND JURISPRUDENCE didn't occur as mapped generic frame!
+2020-07-29 14:44:46.243 | WARNING  | __main__:<module>:116 - POLICY PRESCRIPTION AND EVALUATION didn't occur as mapped generic frame!
+2020-07-29 14:44:46.243 | WARNING  | __main__:<module>:116 - CRIME AND PUNISHMENT didn't occur as mapped generic frame!
+2020-07-29 14:44:46.243 | WARNING  | __main__:<module>:116 - SECURITY AND DEFENSE didn't occur as mapped generic frame!
+2020-07-29 14:44:46.251 | INFO     | __main__:<module>:113 - HEALTH AND SAFETY : 2 user labels which contain 2 arguments: sodomy and health; health
+2020-07-29 14:44:46.251 | INFO     | __main__:<module>:113 - QUALITY OF LIFE : 1 user labels which contain 5 arguments: quality of life
+2020-07-29 14:44:46.251 | INFO     | __main__:<module>:113 - CULTURAL IDENTITY : 2 user labels which contain 12 arguments: tradition; sexual culture
+2020-07-29 14:44:46.251 | INFO     | __main__:<module>:113 - PUBLIC OPINION : 3 user labels which contain 9 arguments: military opinion; american public opinion; public opinion
+2020-07-29 14:44:46.251 | WARNING  | __main__:<module>:116 - POLITICAL didn't occur as mapped generic frame!
+2020-07-29 14:44:46.251 | WARNING  | __main__:<module>:116 - EXTERNAL REGULATION AND REPUTATION didn't occur as mapped generic frame!
+2020-07-29 14:44:46.251 | INFO     | __main__:<module>:121 - UNKNOWN (no fitting generic label match) : 41 user labels which contain 192 arguments: discrimination; benefits; defining marriage; institution of marriage; symbol; compromise; getting to marriage; abuse; children; covenant vs no-fault; choice issues; military readiness; troop morale; retention; recruits; privacy; choice; race/gender analogies; anti-gay violence; false accusation; natural; gay influence; quality; alternatives; homophobia; marriage defined; reproduction; marriage institution; slippery slope; race analogy; stability; social gain; parenting; internationally; civil unions; homosexuals; judgement; gay sex; change; purpose of marriage; importance
+2020-07-29 14:44:46.251 | INFO     | __main__:<module>:135 - Write Corpora\Webis-argument-framing-samesex_out.csv
+2020-07-29 14:44:46.253 | INFO     | __main__:<module>:143 - Finished Corpora\Webis-argument-framing-samesex_out.csv ...

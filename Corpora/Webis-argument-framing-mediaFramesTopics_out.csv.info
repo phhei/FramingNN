@@ -1,0 +1,20 @@
+2020-07-29 14:46:30.717 | INFO     | __main__:<module>:102 - Collected 473 tuples now with 4730 elements in total
+2020-07-29 14:46:30.717 | INFO     | __main__:<module>:105 - 70 out of 92 user frames are without a generic label!
+2020-07-29 14:46:30.717 | WARNING  | __main__:<module>:108 - We provide the generic frame distribution now:
+2020-07-29 14:46:30.717 | INFO     | __main__:<module>:113 - ECONOMIC : 2 user labels which contain 26 arguments: economics; costs
+2020-07-29 14:46:30.725 | WARNING  | __main__:<module>:116 - CAPACITY AND RESOURCES didn't occur as mapped generic frame!
+2020-07-29 14:46:30.725 | INFO     | __main__:<module>:113 - MORALITY : 2 user labels which contain 36 arguments: morality; religion
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - FAIRNESS AND EQUALITY : 4 user labels which contain 32 arguments: state rights; equality; rights; civil rights
+2020-07-29 14:46:30.727 | WARNING  | __main__:<module>:116 - LEGALITY, CONSTITUTIONALITY AND JURISPRUDENCE didn't occur as mapped generic frame!
+2020-07-29 14:46:30.727 | WARNING  | __main__:<module>:116 - POLICY PRESCRIPTION AND EVALUATION didn't occur as mapped generic frame!
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - CRIME AND PUNISHMENT : 1 user labels which contain 4 arguments: crime
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - SECURITY AND DEFENSE : 2 user labels which contain 11 arguments: national security; security
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - HEALTH AND SAFETY : 3 user labels which contain 6 arguments: road safety; sodomy and health; health
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - QUALITY OF LIFE : 1 user labels which contain 5 arguments: quality of life
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - CULTURAL IDENTITY : 2 user labels which contain 12 arguments: tradition; sexual culture
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:113 - PUBLIC OPINION : 5 user labels which contain 20 arguments: public opinion; opinion; american opinion; military opinion; american public opinion
+2020-07-29 14:46:30.727 | WARNING  | __main__:<module>:116 - POLITICAL didn't occur as mapped generic frame!
+2020-07-29 14:46:30.727 | WARNING  | __main__:<module>:116 - EXTERNAL REGULATION AND REPUTATION didn't occur as mapped generic frame!
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:121 - UNKNOWN (no fitting generic label match) : 70 user labels which contain 321 arguments: principles; reasonable suspicion; carrying papers; racial profiling; feasibility; deterrence; constitution; history; past deportations; politics; constitutionality; social; legality; stemming immigration; dmv employees; voter fraud; illegal immigration; deportation; workers; choice; protecting non-smokers; odor; assisting quiting; smoking quantities; businesses; protecting smokers; corporate responsibility; harming to others; tobacco ads; tobacco anti-adverts; discrimination; benefits; defining marriage; institution of marriage; symbol; compromise; getting to marriage; abuse; children; covenant vs no-fault; choice issues; military readiness; troop morale; retention; recruits; privacy; race/gender analogies; anti-gay violence; false accusation; natural; gay influence; quality; alternatives; homophobia; marriage defined; reproduction; marriage institution; slippery slope; race analogy; stability; social gain; parenting; internationally; civil unions; homosexuals; judgement; gay sex; change; purpose of marriage; importance
+2020-07-29 14:46:30.727 | INFO     | __main__:<module>:135 - Write Corpora\Webis-argument-framing-mediaFramesTopics_out.csv
+2020-07-29 14:46:30.735 | INFO     | __main__:<module>:143 - Finished Corpora\Webis-argument-framing-mediaFramesTopics_out.csv ...
