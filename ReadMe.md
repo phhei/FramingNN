@@ -113,7 +113,7 @@ Inputs with a smaller length will be padded, inputs with a longer length will be
 This boolean flag enables with a ``True``-value the fuzzy framing which means the disabling of the one-hot-encoding.
 For example, consider an input that belongs to 80% to the first frame class and to 20% the second one.
 
-If `enable_fuzzy_framing`` is:
+If ``enable_fuzzy_framing`` is:
 
 - ``True``: we want to predict [0.8 0.2 ...]
 - ``False``: we want to predict [1 0 ...]
