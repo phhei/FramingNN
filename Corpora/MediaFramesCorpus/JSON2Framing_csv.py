@@ -35,9 +35,9 @@ def fetch_sentences_of_span(whole_text, start, end) -> Tuple[List[str], List[int
         sentences_nltk = f_sentences[-1]
         f_sentences = f_sentences[:-1]
         f_sentences.extend(nltk.sent_tokenize(text=sentences_nltk, language="english"))
-        return f_sentences, [i for i, s in enumerate(f_sentences)
-                             if (whole_text.index(s) <= start < whole_text.index(s) + len(s)) or
-                             (whole_text.index(s) < end <= whole_text.index(s) + len(s))]
+        return f_sentences, [fi for fi, s_fi in enumerate(f_sentences)
+                             if (whole_text.index(s_fi) <= start < whole_text.index(s_fi) + len(s_fi)) or
+                             (whole_text.index(s_fi) < end <= whole_text.index(s_fi) + len(s_fi))]
 
 
 if __name__ == "__main__":
@@ -126,7 +126,7 @@ if __name__ == "__main__":
                             premise = "" if no_premise else paragraph_split[-2]
                             conclusion = paragraph_split[-1]
                         else:
-                            sentences, candidate_sentences_index = \
+                            all_sentences, candidate_sentences_index = \
                                 fetch_sentences_of_span(whole_text=text, start=annotation["start"],
                                                         end=annotation["end"])
                             if len(candidate_sentences_index) >= 2:
@@ -134,34 +134,35 @@ if __name__ == "__main__":
                                     premise = ""
                                     conclusion = ""
                                     for i in candidate_sentences_index:
-                                        conclusion += sentences[i] + " "
+                                        conclusion += all_sentences[i] + " "
                                 elif extract_sentences:
                                     premise = ""
                                     for i in candidate_sentences_index[:-1]:
-                                        premise += sentences[i] + " "
-                                    conclusion = sentences[candidate_sentences_index[-1]]
+                                        premise += all_sentences[i] + " "
+                                    conclusion = all_sentences[candidate_sentences_index[-1]]
                                 else:
-                                    conclusion = sentences[candidate_sentences_index[-1]]
+                                    conclusion = all_sentences[candidate_sentences_index[-1]]
                                     len_conclusion = annotation["end"] - text.rindex(conclusion, annotation["start"])
                                     if len_conclusion <= 3:
-                                        conclusion = sentences[candidate_sentences_index[-1]]
+                                        conclusion = all_sentences[candidate_sentences_index[-1]]
                                         if len(candidate_sentences_index) >= 3:
                                             premise = ""
                                             for i in candidate_sentences_index[:-2]:
-                                                premise += sentences[i] + " "
+                                                premise += all_sentences[i] + " "
                                         else:
                                             premise = ""
                                     else:
                                         conclusion = conclusion[:len_conclusion].strip()
                                         premise = ""
                                         for i in candidate_sentences_index[:-1]:
-                                            premise += sentences[i] + " "
+                                            premise += all_sentences[i] + " "
                             else:
                                 if extract_sentences:
                                     if len(candidate_sentences_index) >= 1:
                                         candidate_sentence_index = candidate_sentences_index[0]
-                                        premise = sentences[candidate_sentence_index-1] if candidate_sentence_index > 1 else ""
-                                        conclusion = sentences[candidate_sentence_index]
+                                        premise = all_sentences[candidate_sentence_index - 1] \
+                                            if candidate_sentence_index > 1 else ""
+                                        conclusion = all_sentences[candidate_sentence_index]
                                     else:
                                         premise = ""
                                         conclusion = spanned_text
