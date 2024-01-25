@@ -1,8 +1,8 @@
 # A cross-parallel-dataset approach to frame classification at variable granularity levels
 
-With this code you can reproduce the results of the paper
-"_A cross-parallel-dataset approach to frame classification at variable granularity levels_"
-In this file, we explain you how you can set up and use this application.
+With this code, you can reproduce the results of the paper
+["_A cross-parallel-dataset approach to frame classification at variable granularity levels_"](https://www.degruyter.com/document/doi/10.1515/itit-2020-0054/html)
+In this file, we explain how you can set up and use this application.
 
 ## Set up
 
@@ -14,12 +14,12 @@ We recommend to use Python **3.8**.
   - we need certain [NLTK data](https://www.nltk.org/data.html). However, this is done in the code itself
 - Tensorflow (the use of GPU is optional): ``pip install tensorflow`` (we applied version 2.3.0)
 - for logging: ``pip install loguru`` (we applied version 0.4.1)
-- Word-Movers-Distance-implementation: ``pip install word-movers-distance`` (we applied version 0.0.1)
+- Word-Movers-Distance-implementation: ``pip install word-mover-distance`` (we applied version 0.0.1)
 - for the plots: ``pip install matplotlib`` (we applied version 3.2.2)
 
 And of course basic libraries:
 
-- ``pip install numpy`` (we applied version 1.19.1)
+- ``pip install numpy`` (we applied version 1.19.1/ installed with tensorflow, if there are some CPU/GPU-errors try to ``pip install --upgrade tensorflow``)
 
 ### Datasets
 
@@ -29,17 +29,13 @@ We use two datasets
 
 See [this homepage](https://webis.de/data/webis-argument-framing-19.html)
 
-Yamen Ajjour, Milad Alshomary, Henning Wachsmuth, and Benno Stein. Modeling Frames in Argumentation. In Kentaro Inui,
-Jing Jiang, Vincent Ng, and Xiaojun Wan, editors, 2019 Conference on Empirical Methods in Natural Language Processing
-and 9th International Joint Conference on Natural Language Processing (EMNLP 2019), pages 2922-2932, November 2019. ACL.
+Yamen Ajjour, Milad Alshomary, Henning Wachsmuth, and Benno Stein. Modeling Frames in Argumentation. In Kentaro Inui, Jing Jiang, Vincent Ng, and Xiaojun Wan, editors, 2019 Conference on Empirical Methods in Natural Language Processing and 9th International Joint Conference on Natural Language Processing (EMNLP 2019), pages 2922-2932, November 2019. ACL.
 
 #### The Media-Frames-Dataset
 
 See [this GitHub-reference](https://github.com/dallascard/media_frames_corpus)
 
-Card, Dallas, et al. "The media frames corpus: Annotations of frames across issues." Proceedings of the
-53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on
-Natural Language Processing (Volume 2: Short Papers). 2015.
+Card, Dallas, et al. "The media frames corpus: Annotations of frames across issues." Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (Volume 2: Short Papers). 2015.
 
 Unfortunately, we can't provide the dataset in this repository due to license issues.
 
@@ -48,7 +44,7 @@ Unfortunately, we can't provide the dataset in this repository due to license is
 In principle, there is a pre-defined step: the creation of the dataset and then the evaluation on it.
 There are scripts to convert the raw datasets in a generalized format, marked with ``_out.csv``.
 The preprocessor-scripts are in the folder _Corpora_. A very important script is the ``UserFrames2GenericFrames.py``
- 
+
 There are two main files for evaluation.
 
 #### ``BiLSTMApproach.py``
@@ -70,9 +66,9 @@ However, this does not lead to acceptable results. Hence, we do not consider thi
 
 Besides to the comment block at the beginning of the files we want to present the important parameters here.
 
-### Predict the right output...
+### Predict the right output
 
-We implemented various modes for predicting an output. We present the modes now.
+We implemented several modes for predicting an output. We present the modes now.
 
 #### Predict the embedded user label (token by token)
 
@@ -128,8 +124,7 @@ A boolean Flag to either include the **premise** in the input to the learning mo
 
 #### ``using_conclusion``
 
-A boolean Flag to either include the **conclusion** in the input to the learning model or not.
-
+A boolean flag to either include the **conclusion** in the input to the learning model or not.
 
 #### ``filter_unknown_frames``
 
@@ -139,9 +134,9 @@ However, this variable acn be used to filter frames which are not occurring the 
 #### ``word_embeddings`` + ``embedding_size``
 
 Here is the possibility to define the used pre-computed word embeddings. Must be stored in a txt file.
-The embedding size is a integer which represents the dimensionality of of the word embeddings.
+The embedding size is a integer which represents the dimensionality of the word embeddings.
 
-We recommend to use the [GloVe-Word-Embeddings](https://nlp.stanford.edu/projects/glove/)
+We recommend using the [GloVe-Word-Embeddings](https://nlp.stanford.edu/projects/glove/)
 
 #### ``NN_which_used``
 
@@ -176,4 +171,4 @@ This parameter expects an float in the range from 0 (exclusive) to 1 (inclusive)
 It controls the parameter sharing mode:
 
 - ``soft_parameter_sharing_lambda`` < 1: soft-parameter-sharing
--  ``soft_parameter_sharing_lambda`` = 1: hard-parameter-sharing
+- ``soft_parameter_sharing_lambda`` = 1: hard-parameter-sharing
