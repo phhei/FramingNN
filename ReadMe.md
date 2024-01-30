@@ -17,7 +17,7 @@ We recommend to use Python **3.8**.
 - Word-Movers-Distance-implementation: ``pip install word-mover-distance`` (we applied version 0.0.1)
 - for the plots: ``pip install matplotlib`` (we applied version 3.2.2)
 
-And of course basic libraries:
+And basic libraries:
 
 - ``pip install numpy`` (we applied version 1.19.1/ installed with tensorflow, if there are some CPU/GPU-errors try to ``pip install --upgrade tensorflow``)
 
@@ -43,7 +43,7 @@ Unfortunately, we can't provide the dataset in this repository due to license is
 
 In principle, there is a pre-defined step: the creation of the dataset and then the evaluation on it.
 There are scripts to convert the raw datasets in a generalized format, marked with ``_out.csv``.
-The preprocessor-scripts are in the folder _Corpora_. A very important script is the ``UserFrames2GenericFrames.py``
+The preprocessor-scripts are in the folder _Corpora_. A crucial script is the ``UserFrames2GenericFrames.py``
 
 There are two main files for evaluation.
 
@@ -64,7 +64,7 @@ However, this does not lead to acceptable results. Hence, we do not consider thi
 
 ## Important parameters
 
-Besides to the comment block at the beginning of the files we want to present the important parameters here.
+Besides to the comment block at the beginning of the files, we want to present the important parameters here.
 
 ### Predict the right output
 
@@ -128,8 +128,8 @@ A boolean flag to either include the **conclusion** in the input to the learning
 
 #### ``filter_unknown_frames``
 
-A boolean flag which can be activated for an post-filtering. Normally, we filter in the step of the dataset creation.
-However, this variable acn be used to filter frames which are not occurring the defined generic frame-class-set.
+A boolean flag which can be activated for a post-filtering. Normally, we filter in the step of the dataset creation.
+However, this variable acn be used to filter frames which are not occurring in the defined generic frame-class-set.
 
 #### ``word_embeddings`` + ``embedding_size``
 
@@ -167,7 +167,7 @@ To be more specific, Webis gets
 
 #### ``soft_parameter_sharing_lambda``
 
-This parameter expects an float in the range from 0 (exclusive) to 1 (inclusive).
+This parameter expects a float in the range from 0 (exclusive) to 1 (inclusive).
 It controls the parameter sharing mode:
 
 - ``soft_parameter_sharing_lambda`` < 1: soft-parameter-sharing
