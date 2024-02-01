@@ -1,12 +1,15 @@
 import random
-from typing import Optional, Dict, List, Callable, Any
+from typing import Optional, Dict, List, Callable, Any, Union
 
 import numpy
 import torch
 import transformers
-from torch.utils.data import Dataset
-from pandas import DataFrame, read_csv
-from transformers import PreTrainedTokenizer
+import lightning
+from torch.utils.data import Dataset, TensorDataset, StackDataset, DataLoader
+from lightning.pytorch.utilities import CombinedLoader
+from pandas import DataFrame
+from tqdm import tqdm
+from transformers import PreTrainedTokenizer, BatchEncoding
 
 from Utils import UserLabelCluster
 from nltk import word_tokenize
@@ -30,12 +33,22 @@ def _preprocess_x(
     :param with_topic: should the topic be included in the input to the LM?
     :return: A numpy list (one list element for each instance, may be of different lengths)
     """
-    x = [numpy.stack(
-        (array := [word_embeddings[token] for token in word_tokenize(
-            f"{'{}: '.format(row['topic']) if with_topic else ''}{row['premise']} => {row['conclusion']}"
-        ) if token in word_embeddings])[:min(len(array), max_seq_len) if max_seq_len is not None else len(array)],
-        axis=0
-    ) for _, row in df.iterrows()]
+    x = []
+    for arg_id, row in tqdm(df.iterrows(),
+                            total=len(df), desc="Preprocessing text (W2V)", unit="instance", colour="yellow"):
+        try:
+            x.append(numpy.stack(
+                (array := [word_embeddings[token] for token in word_tokenize(
+                    f"{'{}: '.format(row['topic']) if with_topic else ''}{row['premise']} => {row['conclusion']}"
+                ) if token in word_embeddings])[:min(len(array), max_seq_len) if max_seq_len is not None else len(array)],
+                axis=0
+            )
+            )
+        except ValueError:
+            logger.opt(exception=True).error(
+                "Error while processing instance \"{}\" - text cannot be encoded. Dummy it", arg_id
+            )
+            x.append(numpy.ones((1, len(next(iter(word_embeddings.values()))))))
 
     logger.trace("Preprocessed {} sequences (text into static word-embedding sequences)", len(x))
 
@@ -65,7 +78,7 @@ def process_x_rnn(
         word_embeddings: Dict[str, numpy.ndarray],
         max_seq_len: Optional[int] = None,
         with_topic: bool = False
-) -> torch.nn.utils.rnn.PackedSequence:
+) -> Dict[str, Any]:
     """
     Processes the textual input data (x) into a tensor (e.g., for RNNs).
 
@@ -82,10 +95,30 @@ def process_x_rnn(
                  len(x), min(lengths), round(sum(lengths) / len(lengths), 1), max(lengths))
 
     # https://stackoverflow.com/questions/73061601/how-to-mask-padded-0s-in-pytorch-for-rnn-model-training
-    x_rnn = torch.nn.utils.rnn.pad_sequence([torch.from_numpy(numpy.concatenate(([[_l]*_x.shape[-1]], _x), axis=0)) for _l, _x in zip(lengths, x)], batch_first=True, padding_value=0)
+    x_rnn = torch.nn.utils.rnn.pad_sequence([torch.from_numpy(_x) for _x in x], batch_first=True, padding_value=0)
 
-    return {"input": x_rnn, "lengths": lengths, "batch_first": True, "enforce_sorted": False}
+    return {"input": x_rnn, "lengths": torch.tensor(lengths, dtype=torch.int64, device="cpu")}
     # return torch.nn.utils.rnn.pack_padded_sequence(x_rnn, lengths=lengths, batch_first=True, enforce_sorted=False)
+
+
+def dataloader_tensors(
+        df: DataFrame,
+        kwargs,
+        batch_size: int = 64,
+        shuffle: bool = False,
+        run: int = 0
+) -> CombinedLoader:
+    logger.info("Creating DataLoader for {} instances", len(df))
+    if shuffle:
+        logger.info("Shuffling is enabled! Seed: {}", 42+1024*run)
+        df = df.sample(frac=1, random_state=42+1024*run)
+    dataloaders = []
+    for i in range(0, len(df), batch_size):
+        logger.trace("Preprocessing batch {}-{}...", i, min(i+batch_size, len(df)))
+        dataloaders.append(DataLoader(TensorDataset(process_x(df[i:min(i+batch_size, len(df))], **kwargs)),
+                                      batch_size=batch_size, shuffle=False))
+
+    return CombinedLoader(dataloaders, mode="sequential")
 
 
 def process_x_llm(
@@ -93,9 +126,9 @@ def process_x_llm(
         tokenizer: PreTrainedTokenizer,
         max_seq_len: Optional[int] = None,
         with_topic: bool = False
-) -> Dict[str, torch.Tensor]:
+) -> BatchEncoding:
     """
-    Processes the textual input data (x) into a tensor (e.g., for a LLM (huggingdace)).
+    Processes the textual input data (x) into a tensor (e.g., for a LLM (huggingface)).
     :param df: The text instances
     :param tokenizer: the tokenizer of the LLM which should process the input later on
     :param max_seq_len: maximum sequence length (if not given => no truncation)
@@ -165,40 +198,46 @@ def process_y_cluster(df: DataFrame, cluster: UserLabelCluster, frame_kind: str 
     return torch.tensor(encodings_y, dtype=torch.long)
 
 
-class DfDataset(Dataset):
-    def __init__(
-            self,
-            df: DataFrame,
+def process(df: DataFrame,
             x_fc: Callable,
             x_params: Dict[str, Any],
             y_fc: Callable,
-            y_params: Dict[str, Any],
-            batch_size: int = 128
-    ):
-        super().__init__()
-        self.df = df
+            y_params: Dict[str, Any]) -> Dataset:
+    """
+    Wraps a dataframe into a dataset
+    :param df: the dataframe
+    :param x_fc: how to convert the input data
+    :param x_params: parameters for x_fc
+    :param y_fc: how to convert the target data
+    :param y_params: parameters for y_fc
+    :return: dataset (input for PyDataset.finish_datasets)
+    """
+    data = x_fc(df, **x_params)
+    if not isinstance(data, Dict):
+        data = {"x": data}
 
-        logger.debug("Dataset initialized with {} instances", len(self.df))
-        self.x_fc = x_fc
-        self.x_params = x_params
-        self.y_fc = y_fc
-        self.y_params = y_params
-        self.batch_size = batch_size
+    data["y"] = y_fc(df, **y_params)
 
-        self.x = dict()
-        self.y = dict()
+    return StackDataset(**data)
 
-    def __len__(self):
-        return len(self.df)
 
-    def __getitem__(self, idx):
-        if idx not in self.x:
-            logger.debug("Preprocessing batch {}-{}...", idx, min(idx+self.batch_size, len(self.df)))
-            self.x = {idx+i: v for i, v in enumerate(
-                self.x_fc(self.df[idx:min(idx+self.batch_size, len(self.df))], **self.x_params)
-            )}
-            self.y = {idx + i: v for i, v in enumerate(
-                self.y_fc(self.df[idx:min(idx + self.batch_size, len(self.df))], **self.y_params)
-            )}
+def finish_datasets(datasets: Union[Dataset, List[Dataset]], batch_size: int, shuffle: bool = False) -> Dataset:
+    """
+    Finishes the datasets by creating a dataloader for each dataset and combining them into one dataloader.
+    (Can be used to finish a single dataset for lightning-training as well)
+    :param datasets: one or more datasets (e.g., output of process())
+    :param batch_size: the batch size
+    :param shuffle: shuffles the data?
+    :return: An instance for PyModels.setup_train
+    """
+    if not isinstance(datasets, list):
+        datasets = [datasets]
 
-        return self.x[idx], self.y[idx]
+    logger.info("Creating DataLoader for {} datasets ({} instances)", len(datasets), sum(map(len, datasets)))
+    dataloader = [DataLoader(dataset=d, batch_size=batch_size, shuffle=shuffle) for d in datasets]
+
+    if len(dataloader) == 1:
+        return dataloader[0]
+
+    logger.debug("Combining {} dataloaders, then let's train", len(dataloader))
+    return CombinedLoader(dataloader, mode="max_size_cycle")

@@ -1,9 +1,9 @@
 from itertools import combinations
 from pathlib import Path
-from typing import Tuple, Optional, List, Union, Dict, Any
+from typing import Tuple, Optional, List, Dict, Any
 
 import torch
-from lightning import LightningModule, Trainer, LightningDataModule
+from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelSummary, ModelCheckpoint
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 
@@ -15,7 +15,7 @@ from transformers import PreTrainedModel
 
 
 def setup_train(module: LightningModule, root_path: Path,
-                dataset: LightningDataModule,
+                training_data, validation_data,
                 monitoring_metric: Optional[str] = None) -> None:
     """
     Set up the trainer and train the model
@@ -23,7 +23,8 @@ def setup_train(module: LightningModule, root_path: Path,
     :param module: the model to train - the weights will be adapted, and the best model weights will be restored
     (according to the monitoring metric)
     :param root_path: the root path to save the model weights and stats
-    :param dataset: the dataset including training and validation data
+    :param training_data: the dataset including training data - see PyDataset.finish_datasets
+    :param validation_data: the dataset including validation data - see PyDataset.finish_datasets
     (see here https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningDataModule.html /
     https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningDataModule.html#lightning.pytorch.core.LightningDataModule.from_datasets)
     Here, you define the batch size, too.
@@ -39,8 +40,8 @@ def setup_train(module: LightningModule, root_path: Path,
         callbacks.append(
             ModelCheckpoint(
                 monitor=monitoring_metric,
-                dirpath=root_path.joinpath("model_weights"),
-                filename="best_model.pt",
+                dirpath=root_path.joinpath(f"model_weights-{monitoring_metric}"),
+                filename=str(f"score[{monitoring_metric}]").replace("[", "{").replace("]", "}"),
                 save_top_k=1,
                 mode="min" if "loss" in monitoring_metric else "max",
                 save_weights_only=True,
@@ -60,6 +61,7 @@ def setup_train(module: LightningModule, root_path: Path,
         callbacks.append(
             ModelCheckpoint(
                 dirpath=root_path.joinpath("model_weights"),
+                filename="epoch{epoch}.{step}_valLoss{val_loss:.2f}",
                 verbose=False,
                 save_last=True,
                 save_weights_only=True
@@ -76,7 +78,7 @@ def setup_train(module: LightningModule, root_path: Path,
 
     logger.success("Setting up trainer: {}", trainer)
 
-    trainer.fit(module, datamodule=dataset)
+    trainer.fit(module, train_dataloaders=training_data, val_dataloaders=validation_data)
     print(trainer.logged_metrics)
 
     logger.success("Finished training: {} epochs, {} batches", trainer.current_epoch, trainer.global_step)
@@ -85,7 +87,13 @@ def setup_train(module: LightningModule, root_path: Path,
                           for k, v in trainer.logged_metrics.items()]))
     if monitoring_metric is not None:
         logger.info("Loading best model weights")
-        module.load_state_dict(torch.load(root_path.joinpath("model_weights", "best_model.pt")))
+        saved_states = list(root_path.joinpath(f"model_weights-{monitoring_metric}").glob("*.ckpt"))
+        logger.info("Found {} saved states", len(saved_states))
+        if len(saved_states) > 0:
+            ckpt = torch.load(saved_states[-1])
+            logger.success("Loading last saved state from \"{}\" (from epoch: {})",
+                           saved_states[-1], ckpt.get("epoch", "unknown"))
+            module.load_state_dict(ckpt["state_dict"])
 
 
 class ClassificationModule(LightningModule):
@@ -124,32 +132,49 @@ class ClassificationModule(LightningModule):
 
         self.learning_rate = learning_rate
 
-    def forward(self, x: Union[torch.Tensor, Dict[str, Any]], y: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def forward(self, kwargs) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        def _pop_tensor_from_kwargs(key: List[str]) -> Optional[torch.Tensor]:
+            logger.trace("Extracting tensor from kwargs with [{}]", "|".join(kwargs.keys()))
+
+            for k in key:
+                if k in kwargs:
+                    logger.trace("Found key \"{}\" in kwargs", k)
+                    return kwargs.pop(k)
+                else:
+                    logger.info("Key \"{}\" contained", k)
+
+            logger.warning("{} not contained, no resulting vector", "->".join(key))
+            return None
+
+        y = _pop_tensor_from_kwargs(key=["y", "labels", "label_ids"])
+
         if isinstance(self.core_model, PreTrainedModel):
-            output_logits = self.fc(self.dropout(self.core_model(**x).last_hidden_state[:, 0, :]))
+            output_core = self.core_model(**kwargs).last_hidden_state[:, 0, :]
         elif isinstance(self.core_model, torch.nn.RNNBase):
-            output_rnn = self.core_model(
-                torch.nn.utils.rnn.pack_padded_sequence(
-                    x[:, 1:, :], lengths=x[:, 0, 0].cpu(), batch_first=True, enforce_sorted=False
-                )
+            output_core = self.core_model(
+                torch.nn.utils.rnn.pack_padded_sequence(**kwargs, batch_first=True, enforce_sorted=False)
             )[0]
-            output_rnn = torch.stack(
-                tensors=[instance[-1] for instance in torch.nn.utils.rnn.unpack_sequence(output_rnn)],
+            output_core = torch.stack(
+                tensors=[instance[-1] for instance in torch.nn.utils.rnn.unpack_sequence(output_core)],
                 dim=0
             )
-            output_logits = self.fc(self.dropout(output_rnn))
         else:
-            output_rnn = self.core_model(x)[0]
-            assert isinstance(output_rnn, torch.Tensor)
-            output_rnn = output_rnn[:, -1, :]
-            output_logits = self.fc(self.dropout(output_rnn))
+            x = _pop_tensor_from_kwargs(key=["x", "input"])
+            if x is None:
+                logger.error("No input provided, expect \"x\" or \"input\"")
+                output_core = torch.zeros((1, self.core_model.hidden_size))
+            else:
+                output_core = self.core_model(x)[0]
+                output_core = output_core[:, -1, :]
+        output_logits = self.fc(self.dropout(output_core))
         if y is None:
             logger.trace("No labels provided, returning only output, no loss")
         return self.normalizer(output_logits), None if y is None else self.loss(output_logits, y)
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.25, patience=1, verbose=True)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.25,
+                                                               patience=1, verbose=True)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -164,8 +189,9 @@ class ClassificationModule(LightningModule):
 
     def training_step(self, batch, batch_idx):
         logger.trace("Training step {} with batch {}", batch_idx, batch)
-        x, y = batch
-        output, loss = self(x, y)
+        # if isinstance(batch, List):
+        #     batch = batch[0]
+        output, loss = self(batch)
         self.log(
             name="train_loss_{}".format(self.task_name),
             value=loss,
@@ -178,44 +204,57 @@ class ClassificationModule(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         logger.trace("Validation step {} with batch {}", batch_idx, batch)
-        x, y = batch
-        output, loss = self(x, y)
-        self.log(name="val_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=True, on_epoch=True)
-        self.log(
-            name="val_accMacro_{}".format(self.task_name),
-            value=accuracy(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-            prog_bar=False,
-            logger=True,
-            on_epoch=True
-        )
-        self.log(
-            name="val_precisionMacro_{}".format(self.task_name),
-            value=precision(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-            prog_bar=False,
-            logger=True,
-            on_epoch=True
-        )
-        self.log(
-            name="val_recallMacro_{}".format(self.task_name),
-            value=recall(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-            prog_bar=False,
-            logger=True,
-            on_epoch=True
-        )
-        self.log(
-            name="val_f1Macro_{}".format(self.task_name),
-            value=f1_score(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-            prog_bar=True,
-            logger=True,
-            on_epoch=True
-        )
-        self.log(
-            name="val_f1Micro_{}".format(self.task_name),
-            value=f1_score(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="micro"),
-            prog_bar=False,
-            logger=True,
-            on_epoch=True
-        )
+        # if isinstance(batch, List):
+        #    batch = batch[0]
+        y = batch.get("y", None)
+        if y is None:
+            logger.warning("No labels for validation step, only {}", "#".join(batch.keys()))
+        val_logger = batch.pop("logger", self)
+        logger.trace("Val-logging at {}", val_logger.logger.name)
+
+        output, loss = self(batch)
+        if y is not None:
+            val_logger.log(name="val_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=True, on_epoch=True)
+            val_logger.log(
+                name="val_accMacro_{}".format(self.task_name),
+                value=accuracy(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
+                prog_bar=True,
+                logger=True,
+                on_epoch=True,
+                on_step=False
+            )
+            val_logger.log(
+                name="val_precisionMacro_{}".format(self.task_name),
+                value=precision(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
+                prog_bar=False,
+                logger=True,
+                on_epoch=True,
+                on_step=False
+            )
+            val_logger.log(
+                name="val_recallMacro_{}".format(self.task_name),
+                value=recall(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
+                prog_bar=False,
+                logger=True,
+                on_epoch=True,
+                on_step=False
+            )
+            val_logger.log(
+                name="val_f1Macro_{}".format(self.task_name),
+                value=f1_score(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
+                prog_bar=True,
+                logger=True,
+                on_epoch=True,
+                on_step=False
+            )
+            val_logger.log(
+                name="val_f1Micro_{}".format(self.task_name),
+                value=f1_score(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="micro"),
+                prog_bar=True,
+                logger=True,
+                on_epoch=True,
+                on_step=False
+            )
         return loss
 
 
@@ -245,17 +284,28 @@ class DoubleClassificationModule(LightningModule):
                 elif len(task_weighting) > len(classification_modules):
                     logger.warning("Task weighting is longer than classification modules, truncating")
                     self.task_weighting = task_weighting[:len(classification_modules)]
+            else:
+                logger.warning("Task weighting has same length as classification modules ({}) -- deactivating",
+                               len(self.classification_modules))
+                self.task_weighting = None
 
         self.learning_rate = learning_rate
 
-    def forward(self, x: List[torch.Tensor], y: List[Optional[torch.Tensor]]) -> Tuple[List[torch.Tensor], Optional[torch.Tensor]]:
-        assert len(x) == len(self.classification_modules), (
-            "Input must be a list of {} tensors".format(len(self.classification_modules)))
+    def forward(self, listed_kwargs: Dict) -> Tuple[List[torch.Tensor], Optional[torch.Tensor]]:
+        assert len(listed_kwargs) == len(self.classification_modules), (
+            "Input must be a task-list of {} tensor-dicts".format(len(self.classification_modules)))
         outputs = []
         losses = []
-        for _i, _x in enumerate(x):
-            assert isinstance(_x, torch.Tensor), "Input must be a list of tensors"
-            _output, _loss = self.classification_modules[_i](_x, None if y is None else y[_i])
+        for _i, _kwargs in enumerate(listed_kwargs):
+            assert isinstance(_kwargs, Dict), "Input must be a dict of tensors"
+
+            y = _kwargs.get("y", None)
+            _output, _loss = self.classification_modules[_i](_kwargs)
+            if y is not None:
+                _kwargs["y"] = y
+            if _loss is not None:
+                self.log(name="train_loss_m{}".format(_i), value=_loss, prog_bar=False, logger=True, on_epoch=True)
+
             logger.debug("Module {} output: {} (loss: {})", _i, _output.shape, _loss)
             outputs.append(_output)
             if _loss is not None:
@@ -273,7 +323,7 @@ class DoubleClassificationModule(LightningModule):
                     loss = loss + loss_add
                     logger.trace("Parameter {} has a difference loss of {}", p1.shape, loss_add)
 
-        return outputs, None if all(map(lambda _y: _y is None, y)) and self.soft_parameter_sharing is None else loss
+        return outputs, None if torch.sum(torch.abs(loss)) == 0 and self.soft_parameter_sharing is None else loss
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -294,8 +344,7 @@ class DoubleClassificationModule(LightningModule):
 
     def training_step(self, batch, batch_idx):
         logger.trace("Training step {} with batch {}", batch_idx, batch)
-        x, y = batch
-        outputs, loss = self(x, y)
+        outputs, loss = self(batch)
         self.log(
             name="train_lossAll",
             value=loss,
@@ -308,13 +357,15 @@ class DoubleClassificationModule(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         logger.trace("Validation step {} with batch {}", batch_idx, batch)
-        x, y = batch
-        outputs, loss = self(x, y)
+        outputs, loss = self(batch)
         self.log(name="val_lossAll", value=loss, prog_bar=False, logger=True, on_epoch=True)
 
         with torch.no_grad():
-            for module in self.classification_modules:
+            for i, module in enumerate(self.classification_modules):
                 if isinstance(module, LightningModule):
-                    module.validation_step(batch, batch_idx)
+                    logger.debug("Validating metric score collection {} with batch {}", i, "#".join(batch[i].keys()))
+                    batch[i]["logger"] = self
+                    module.validation_step(batch[i], batch_idx)
+                    # logger.trace("Val-logged at {}", batch[i].pop("logger"))
 
         return loss
