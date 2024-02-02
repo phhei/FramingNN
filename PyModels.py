@@ -1,11 +1,11 @@
 from itertools import combinations
 from pathlib import Path
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, List, Dict, Any, Literal
 
 import torch
 from lightning import LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelSummary, ModelCheckpoint
-from lightning.pytorch.utilities.types import OptimizerLRScheduler
+from lightning.pytorch.utilities.types import OptimizerLRScheduler, STEP_OUTPUT
 
 from loguru import logger
 
@@ -13,18 +13,22 @@ from torchmetrics.functional import accuracy, precision, recall, f1_score
 
 from transformers import PreTrainedModel
 
+from json import dump as json_dump
+
 
 def setup_train(module: LightningModule, root_path: Path,
-                training_data, validation_data,
+                training_data, validation_data, test_data: Optional = None,
                 monitoring_metric: Optional[str] = None) -> None:
     """
-    Set up the trainer and train the model
+    Set up the trainer and train the model -- and test it. CORE METHOD
 
     :param module: the model to train - the weights will be adapted, and the best model weights will be restored
     (according to the monitoring metric)
     :param root_path: the root path to save the model weights and stats
     :param training_data: the dataset including training data - see PyDataset.finish_datasets
     :param validation_data: the dataset including validation data - see PyDataset.finish_datasets
+    :param test_data: the dataset including test data - see PyDataset.finish_datasets
+    (if not given, the validation data is used for testing)
     (see here https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningDataModule.html /
     https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningDataModule.html#lightning.pytorch.core.LightningDataModule.from_datasets)
     Here, you define the batch size, too.
@@ -95,9 +99,44 @@ def setup_train(module: LightningModule, root_path: Path,
                            saved_states[-1], ckpt.get("epoch", "unknown"))
             module.load_state_dict(ckpt["state_dict"])
 
+    if test_data is not None:
+        try:
+            logger.info("Testing model with {} batches of test data", len(test_data))
+        except RuntimeError:
+            logger.opt(exception=True).trace("Testing model")
+    else:
+        try:
+            logger.warning("No test data provided, using validation data for testing ({} batches)",
+                           len(validation_data))
+        except RuntimeError:
+            logger.opt(exception=True).trace("No validation data provided, using training data for testing")
+        test_data = validation_data
+    listed_test_metrics = trainer.test(model=module, dataloaders=test_data, verbose=False, ckpt_path=None)
+    logger.debug("Fetched {} metrics lists, containing {} metrics in total",
+                 len(listed_test_metrics), sum(map(len, listed_test_metrics)))
+    logger.success("Tested model, resulting into following metrics: {}",
+                   "\nAND (other task)\n".join(map(lambda mkv: "\n".join(map(
+                       lambda kv: f"\t{kv[0]}: {kv[1]:.3f}",
+                       mkv.items())
+                   ), listed_test_metrics)))
+    logger.trace("Let's store the results in the root path")
+    for i, metrics in enumerate(listed_test_metrics):
+        with root_path.joinpath(f"test_metrics_{i}.txt").open(mode="w", encoding="utf-8") as fs:
+            json_dump(obj=metrics, fp=fs, indent=2, sort_keys=True)
+
 
 class ClassificationModule(LightningModule):
     def __init__(self, core_model: torch.nn.Module, num_classes: int, task_name: str, learning_rate: float = 1e-3):
+        """
+        A classification module, which can be used to train a single-label classification task.
+        :param core_model: the "heart" of the model, which should be a torch.nn.Module
+        (e.g. a LLM, a RNN, a CNN, ...)
+        :param num_classes: number of classes for the classification task (this classification module
+        puts the classification head on top of the core model)
+        :param task_name: the name of the tas to be processed - should be unique
+        :param learning_rate: the learning rate for this classification module (optimizer)
+        If you put this module into a MultiClassificationModule, the learning rate given here would be ignored
+        """
         super().__init__()
 
         logger.info("Initializing classification module for task {} with {} classes", task_name, num_classes)
@@ -202,6 +241,74 @@ class ClassificationModule(LightningModule):
         )
         return loss
 
+    def metric_log(self, prediction: torch.Tensor, target: torch.Tensor, metric_logger: LightningModule,
+                   split: Literal["train", "val", "test"] = "val"):
+        metric_logger.log(
+            name="{}_accMacro_{}".format(split, self.task_name),
+            value=accuracy(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=1,
+                           average="macro"),
+            prog_bar=True,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+        metric_logger.log(
+            name="{}_accTop3Macro_{}".format(split, self.task_name),
+            value=accuracy(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=3,
+                           average="macro"),
+            prog_bar=False,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+        metric_logger.log(
+            name="{}_precisionMacro_{}".format(split, self.task_name),
+            value=precision(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=1,
+                            average="macro"),
+            prog_bar=False,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+        metric_logger.log(
+            name="{}_recallMacro_{}".format(split, self.task_name),
+            value=recall(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=1,
+                         average="macro"),
+            prog_bar=False,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+        metric_logger.log(
+            name="{}_f1Macro_{}".format(split, self.task_name),
+            value=f1_score(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=1,
+                           average="macro"),
+            prog_bar=True,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+        metric_logger.log(
+            name="{}_f1Micro_{}".format(split, self.task_name),
+            value=f1_score(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=1,
+                           average="micro"),
+            prog_bar=True,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+        metric_logger.log_dict(
+            dictionary={"{}_f1_{}=>Class{:0>2}".format(split, self.task_name, i): f1 for i, f1 in
+                        enumerate(f1_score(
+                            preds=prediction, target=target, task="multiclass",
+                            num_classes=self.num_classes, top_k=1, average=None
+                        ))},
+            prog_bar=False,
+            logger=True,
+            on_epoch=True,
+            on_step=False
+        )
+
     def validation_step(self, batch, batch_idx):
         logger.trace("Validation step {} with batch {}", batch_idx, batch)
         # if isinstance(batch, List):
@@ -215,57 +322,56 @@ class ClassificationModule(LightningModule):
         output, loss = self(batch)
         if y is not None:
             val_logger.log(name="val_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=True, on_epoch=True)
-            val_logger.log(
-                name="val_accMacro_{}".format(self.task_name),
-                value=accuracy(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-                prog_bar=True,
-                logger=True,
-                on_epoch=True,
-                on_step=False
+            self.metric_log(prediction=output, target=y, metric_logger=val_logger)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        logger.trace("Testing step {} with batch {}", batch_idx, batch)
+        y = batch.get("y", None)
+        if y is None:
+            logger.error("No labels for test step, only {}", "#".join(batch.keys()))
+        val_logger = batch.pop("logger", self)
+        logger.trace("Test-logging at {}", val_logger.logger.name)
+
+        output, loss = self(batch)
+        if y is not None:
+            val_logger.log(name="test_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=False,
+                           on_epoch=True)
+            self.metric_log(prediction=output, target=y, metric_logger=val_logger)
+            prediction_path = Path(".predictions").joinpath(self.task_name).joinpath("test set")
+            prediction_path.mkdir(parents=True, exist_ok=True)
+            prediction_path.joinpath("batch_{}.csv".format(batch_idx)).write_text(
+                data="Predicted class,Predicted Prob,True class\n{}".format(
+                    "\n".join([f"{torch.argmax(_o.cpu()).item()},"
+                               f"{torch.max(_o.cpu()).item():.3f},"
+                               f"{_y.cpu().item() if len(_y.shape) == 0 else _y.cpu().tolist()}"
+                               for _o, _y in zip(output, y)])
+                ),
+                encoding="utf-8",
+                errors="ignore"
             )
-            val_logger.log(
-                name="val_precisionMacro_{}".format(self.task_name),
-                value=precision(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-                prog_bar=False,
-                logger=True,
-                on_epoch=True,
-                on_step=False
-            )
-            val_logger.log(
-                name="val_recallMacro_{}".format(self.task_name),
-                value=recall(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-                prog_bar=False,
-                logger=True,
-                on_epoch=True,
-                on_step=False
-            )
-            val_logger.log(
-                name="val_f1Macro_{}".format(self.task_name),
-                value=f1_score(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="macro"),
-                prog_bar=True,
-                logger=True,
-                on_epoch=True,
-                on_step=False
-            )
-            val_logger.log(
-                name="val_f1Micro_{}".format(self.task_name),
-                value=f1_score(preds=output, target=y, task="multiclass", num_classes=self.num_classes, average="micro"),
-                prog_bar=True,
-                logger=True,
-                on_epoch=True,
-                on_step=False
-            )
+            logger.debug("Stored predictions in {} (batch: {})", prediction_path.absolute(), batch_idx)
         return loss
 
 
-class DoubleClassificationModule(LightningModule):
+class MultiClassificationModule(LightningModule):
     def __init__(
             self,
             classification_modules: List[LightningModule],
-            soft_parameter_sharing: Optional[float],
+            soft_parameter_sharing: Optional[float] = None,
             task_weighting: Optional[List[float]] = None,
             learning_rate: float = 1e-3
     ):
+        """
+        A multi-task classification module, which can be used to train multiple classification tasks at once.
+        :param classification_modules: A list of classification modules (see PyModels.ClassificationModule).
+        Each module should have a different name - be aware of needing a combined dataset for training this module!
+        :param soft_parameter_sharing: Enable soft parameter sharing by setting a lambda value
+        (normally in between 0.0-1.0)
+        :param task_weighting: are different tasks more important than others? Or: if you have a task with fewer samples
+        (cycling), you can consider this here
+        :param learning_rate: the overall learning rate for this multi-task module
+        """
         super().__init__()
         self.classification_modules = torch.nn.ModuleList(classification_modules)
         logger.info("Gathered {} classification modules", len(self.classification_modules))
@@ -273,9 +379,15 @@ class DoubleClassificationModule(LightningModule):
         if soft_parameter_sharing is not None:
             logger.debug("Using soft parameter sharing with gamma={}", soft_parameter_sharing)
         self.task_weighting = task_weighting
-        if self.task_weighting is not None:
+        if task_weighting is None:
+            self.task_weighting = [1/len(classification_modules)] * len(classification_modules)
+        else:
             logger.debug("Using task weighting with weights={}", task_weighting)
-            if len(task_weighting) != len(classification_modules):
+            if len(task_weighting) == 1:
+                logger.info("Task weighting has only one value, using it for all classification modules -- "
+                            "makes no sense!")
+                self.task_weighting = None
+            elif len(task_weighting) != len(classification_modules):
                 logger.warning("Task weighting must have same length as classification modules: {} != {}",
                                len(task_weighting), len(classification_modules))
                 if len(task_weighting) < len(classification_modules):
@@ -285,9 +397,11 @@ class DoubleClassificationModule(LightningModule):
                     logger.warning("Task weighting is longer than classification modules, truncating")
                     self.task_weighting = task_weighting[:len(classification_modules)]
             else:
-                logger.warning("Task weighting has same length as classification modules ({}) -- deactivating",
-                               len(self.classification_modules))
-                self.task_weighting = None
+                logger.debug("Task weighting has same length as classification modules ({}) -- good",
+                             len(self.classification_modules))
+            if self.task_weighting is not None and sum(self.task_weighting) != 1:
+                logger.debug("Task weighting does not sum up to 1 but {}, normalizing", sum(self.task_weighting))
+                self.task_weighting = [w/sum(self.task_weighting) for w in self.task_weighting]
 
         self.learning_rate = learning_rate
 
@@ -367,5 +481,20 @@ class DoubleClassificationModule(LightningModule):
                     batch[i]["logger"] = self
                     module.validation_step(batch[i], batch_idx)
                     # logger.trace("Val-logged at {}", batch[i].pop("logger"))
+
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        logger.trace("Testing step {} with batch {}", batch_idx, batch)
+        outputs, loss = self(batch)
+        self.log(name="test_lossAll", value=loss, prog_bar=False, logger=True, on_epoch=True)
+
+        with torch.no_grad():
+            for i, module in enumerate(self.classification_modules):
+                if isinstance(module, LightningModule):
+                    logger.debug("Testing metric score collection {} with batch {}", i, "#".join(batch[i].keys()))
+                    batch[i]["logger"] = self
+                    module.test_step(batch[i], batch_idx)
+                    # logger.trace("Test-logged at {}", batch[i].pop("logger"))
 
         return loss
