@@ -244,18 +244,18 @@ class ClassificationModule(LightningModule):
     def metric_log(self, prediction: torch.Tensor, target: torch.Tensor, metric_logger: LightningModule,
                    split: Literal["train", "val", "test"] = "val"):
         metric_logger.log(
-            name="{}_accMacro_{}".format(split, self.task_name),
+            name="{}_accMicro_{}".format(split, self.task_name),
             value=accuracy(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=1,
-                           average="macro"),
+                           average="micro"),
             prog_bar=True,
             logger=True,
             on_epoch=True,
             on_step=False
         )
         metric_logger.log(
-            name="{}_accTop3Macro_{}".format(split, self.task_name),
+            name="{}_accTop3Micro_{}".format(split, self.task_name),
             value=accuracy(preds=prediction, target=target, task="multiclass", num_classes=self.num_classes, top_k=3,
-                           average="macro"),
+                           average="micro"),
             prog_bar=False,
             logger=True,
             on_epoch=True,
@@ -322,7 +322,7 @@ class ClassificationModule(LightningModule):
         output, loss = self(batch)
         if y is not None:
             val_logger.log(name="val_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=True, on_epoch=True)
-            self.metric_log(prediction=output, target=y, metric_logger=val_logger)
+            self.metric_log(prediction=output, target=y, metric_logger=val_logger, split="val")
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -337,7 +337,7 @@ class ClassificationModule(LightningModule):
         if y is not None:
             val_logger.log(name="test_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=False,
                            on_epoch=True)
-            self.metric_log(prediction=output, target=y, metric_logger=val_logger)
+            self.metric_log(prediction=output, target=y, metric_logger=val_logger, split="test")
             prediction_path = Path(".predictions").joinpath(self.task_name).joinpath("test set")
             prediction_path.mkdir(parents=True, exist_ok=True)
             prediction_path.joinpath("batch_{}.csv".format(batch_idx)).write_text(

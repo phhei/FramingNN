@@ -213,7 +213,7 @@ def process(df: DataFrame,
     :return: dataset (input for PyDataset.finish_datasets)
     """
     data = x_fc(df, **x_params)
-    if not isinstance(data, Dict):
+    if not isinstance(data, Dict) and not isinstance(data, transformers.BatchEncoding):
         data = {"x": data}
 
     data["y"] = y_fc(df, **y_params)
