@@ -48,21 +48,21 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
         return [x]
 
 
-@click.command()
+@click.command(add_help_option=True)
 @click.option(
     "--output_root_path", "-out",
     default=None,
     show_default=False,
     help="You can specify the output root path where all results/ weights will be saved. "
          "If not set, a sensible path will be generated",
-    type=Path
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, writable=True, path_type=Path)
 )
 @click.option(
     "--train_data_path", "-train",
     multiple=True,
     help="You can specify the path to the training data here (should be preprocessed). "
          "Define multiple paths (by setting several -train <value>) in case of multi-task learning",
-    type=Path
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path)
 )
 @click.option(
     "--train_data_frac", "-trainfrac",
@@ -79,7 +79,7 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
     multiple=True,
     help="You can specify the path to the development data here (should be preprocessed). "
          "Define multiple paths (by setting several -dev <value> <value>) in case of multi-task learning",
-    type=Path
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path)
 )
 @click.option(
     "--dev_data_frac", "-devfrac", "-valfrac",
@@ -96,7 +96,7 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
     multiple=True,
     help="You can specify the path to the testing data here (should be preprocessed). "
          "Define multiple paths (by setting several -test <value>) in case of multi-task learning",
-    type=Path
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path)
 )
 @click.option(
     "--test_data_frac", "-testfrac",
@@ -317,7 +317,7 @@ def run(runs: int,
                     {name: i for i, name in enumerate(Frames.most_frequent_media_frames_set.frame_names)}
                 f_num_classes = len(Frames.most_frequent_media_frames_set.frame_names)
             elif fct_out.startswith("cluster"):
-                f_num_classes = int(fct_out.split("_")[1])
+                f_num_classes = int(fct_out.split("_")[1]) if "_" in fct_out else 15
                 cluster_file = Path("clusters/9860x300d_semantic_{}c_{}.pkl".format(f_num_classes, f_current_run))
                 logger.info("Load cluster file for {}: {}", fct_out, cluster_file.absolute())
                 with cluster_file.open(mode="rb") as f:
@@ -429,8 +429,7 @@ def run(runs: int,
                     model
                 ).joinpath(
                     f"lr{learning_rate}_bs{batch_size}_"
-                    f"sharing{'All' if hard_parameter_sharing else 
-                    ('None' if soft_parameter_sharing is None else soft_parameter_sharing)}_"
+                    f"sharing{'All' if hard_parameter_sharing else ('None' if soft_parameter_sharing is None else soft_parameter_sharing)}_"
                     f"{'earlystopped' if early_stopping else ''}"
                 )
             output_root_path = output_root_path.joinpath(f"Run{current_run:>02}")
