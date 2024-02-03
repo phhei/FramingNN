@@ -4,16 +4,16 @@ from typing import Optional, Dict, List, Callable, Any, Union
 import numpy
 import torch
 import transformers
-import lightning
-from torch.utils.data import Dataset, TensorDataset, StackDataset, DataLoader
 from lightning.pytorch.utilities import CombinedLoader
+from loguru import logger
+from nltk import word_tokenize
 from pandas import DataFrame
+from torch.utils.data import Dataset, TensorDataset, StackDataset, DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer, BatchEncoding
 
 from Utils import UserLabelCluster
-from nltk import word_tokenize
-from loguru import logger
+
 
 # https://lightning.ai/docs/pytorch/stable/starter/installation.html
 # https://lightning.ai/docs/torchmetrics/stable/pages/quickstart.html
@@ -99,26 +99,6 @@ def process_x_rnn(
 
     return {"input": x_rnn, "lengths": torch.tensor(lengths, dtype=torch.int64, device="cpu")}
     # return torch.nn.utils.rnn.pack_padded_sequence(x_rnn, lengths=lengths, batch_first=True, enforce_sorted=False)
-
-
-def dataloader_tensors(
-        df: DataFrame,
-        kwargs,
-        batch_size: int = 64,
-        shuffle: bool = False,
-        run: int = 0
-) -> CombinedLoader:
-    logger.info("Creating DataLoader for {} instances", len(df))
-    if shuffle:
-        logger.info("Shuffling is enabled! Seed: {}", 42+1024*run)
-        df = df.sample(frac=1, random_state=42+1024*run)
-    dataloaders = []
-    for i in range(0, len(df), batch_size):
-        logger.trace("Preprocessing batch {}-{}...", i, min(i+batch_size, len(df)))
-        dataloaders.append(DataLoader(TensorDataset(process_x(df[i:min(i+batch_size, len(df))], **kwargs)),
-                                      batch_size=batch_size, shuffle=False))
-
-    return CombinedLoader(dataloaders, mode="sequential")
 
 
 def process_x_llm(
@@ -221,7 +201,7 @@ def process(df: DataFrame,
     return StackDataset(**data)
 
 
-def finish_datasets(datasets: Union[Dataset, List[Dataset]], batch_size: int, shuffle: bool = False) -> Dataset:
+def finish_datasets(datasets: Union[Dataset, List[Dataset]], batch_size: int, shuffle: bool = False) -> Union[DataLoader, CombinedLoader]:
     """
     Finishes the datasets by creating a dataloader for each dataset and combining them into one dataloader.
     (Can be used to finish a single dataset for lightning-training as well)
