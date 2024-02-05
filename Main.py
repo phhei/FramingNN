@@ -42,13 +42,22 @@ target_fct_mapper = {
 
 
 def ensure_list(x: Union[T, List[T]]) -> List[T]:
-    if isinstance(x, list):
-        return x
+    if isinstance(x, list) or isinstance(x, tuple):
+        logger.trace("Found a list with {} elements ({} are None)", len(x), sum(map(lambda _x: int(_x is None), x)))
+        return None if len(x) == 0 or all(map(lambda _x: _x is None, x)) else x
     else:
+        logger.debug("Convert single value to list")
         return [x]
 
 
 @click.command(add_help_option=True)
+@click.option(
+    "--runs", "-r",
+    default=1,
+    show_default=True,
+    type=click.IntRange(1, 100, clamp=True),
+    help="How many runs do you want to perform? (in each run, the model parameters are initialized randomly)"
+)
 @click.option(
     "--output_root_path", "-out",
     default=None,
@@ -218,10 +227,19 @@ def run(runs: int,
     logger.debug("Let's get started!")
 
     # Variable type conversion
-    if isinstance(model_params, List):
-        model_params = dict(model_params)
-        # TODO: type conversion
-    # TODO ensure_list directly here
+    if not isinstance(model_params, Dict):
+        model_params = ensure_list(model_params)
+        if model_params is not None:
+            model_params = dict(model_params)
+            # TODO: type conversion
+    train_data_path = ensure_list(train_data_path)
+    train_data_frac = ensure_list(train_data_frac)
+    dev_data_path = ensure_list(dev_data_path)
+    dev_data_frac = ensure_list(dev_data_frac)
+    test_data_path = ensure_list(test_data_path)
+    test_data_frac = ensure_list(test_data_frac)
+    fct_input_process = ensure_list(fct_input_process)
+    fct_output_process = ensure_list(fct_output_process)
 
     # Load data
     data_df = dict()
@@ -229,9 +247,7 @@ def run(runs: int,
                                       ("dev", dev_data_path, dev_data_frac),
                                       ("test", test_data_path, test_data_frac)]:
         if data_path:
-            data_path = ensure_list(data_path)
             if data_frac:
-                data_frac = ensure_list(data_frac)
                 assert len(data_frac) == len(data_path)
             else:
                 data_frac = [(0., 1.)] * len(data_path)
@@ -283,8 +299,6 @@ def run(runs: int,
     def process_data(f_fct_input_process, f_fct_output_process, f_current_run: int = 1) -> Tuple[Dict[str, Dataset], int]:
         f_processed_data = defaultdict(list)
         f_num_classes = None
-        f_fct_input_process = ensure_list(f_fct_input_process)
-        f_fct_output_process = ensure_list(f_fct_output_process)
         for i, (fct_in, fct_out) in enumerate(zip(f_fct_input_process, f_fct_output_process)):
             if fct_in not in input_fct_mapper or fct_out not in target_fct_mapper:
                 raise ValueError(f"Unknown function {fct_in}/{fct_out}")
@@ -292,7 +306,7 @@ def run(runs: int,
             fct_in_params = {"max_seq_len": max_length, "with_topic": process_topics}
             if fct_in_name == process_x_rnn or fct_in_name == process_x:
                 fct_in_params["word_embeddings"] = Utils.load_word_embeddings(
-                    glove_file="../../_wordEmbeddings/glove/glove.840B.300d.txt",
+                    glove_file=Path("../../_wordEmbeddings/glove/glove.840B.300d.txt"),
                     embedding_size=300
                 )
             elif fct_in_name == process_x_llm:
@@ -300,7 +314,10 @@ def run(runs: int,
                     model_params.get("pretrained_model_name_or_path", "roberta-base")
                     if model_params else "roberta-base"
                 )
-            logger.debug("Preprocess {}. input data with function \"{}\" and parameters: {}", i, fct_in, fct_in_params)
+            logger.debug("Preprocess {}. input data with function \"{}\" and parameters: {}",
+                         i, fct_in,
+                         ", ".join(map(lambda kv: f"{kv[0]} ({kv[1] if isinstance(kv[1], bool) or isinstance(kv[1], str) else type(kv[1])})",
+                                       fct_in_params.items())))
 
             fct_out_name = target_fct_mapper[fct_out]
             fct_out_params = {"frame_kind": "genericFrame"}
@@ -373,13 +390,13 @@ def run(runs: int,
             else:
                 raise ValueError(f"Unknown model {model}")
 
-            core_models = [model_class(**_model_params)]*len(ensure_list(train_data_path)) \
+            core_models = [model_class(**_model_params)]*len(train_data_path) \
                 if hard_parameter_sharing else \
-                [model_class(**_model_params) for _ in range(len(ensure_list(train_data_path)))]
+                [model_class(**_model_params) for _ in range(len(train_data_path))]
             logger.debug("Creates {} core model(s): {}", len(core_models), core_models[0])
 
             # Ensure actual data:
-            if any(map(lambda f_o: f_o.startswith("cluster"), ensure_list(fct_output_process))):
+            if any(map(lambda f_o: f_o.startswith("cluster"), fct_output_process)):
                 logger.debug("Ensure actual data for cluster model")
                 final_processed_data, num_classes = process_data(
                     f_fct_input_process=fct_input_process,
@@ -396,9 +413,9 @@ def run(runs: int,
                 learning_rate=learning_rate,
                 task_name=f"IN{fct_in_name.lower()}MODEL{model.lower()}OUT{fct_out_name.lower()}_{i}_Run{current_run}"
             ) for i, (fct_in_name, fct_out_name, core_model) in enumerate(
-                zip(ensure_list(fct_input_process), ensure_list(fct_output_process), core_models)
+                zip(fct_input_process, fct_output_process, core_models)
             )]
-            logger.debug("Creates {} final model(s): ({} classes in total)",
+            logger.debug("Creates {} final model(s) ({} classes in total)",
                          len(final_models), sum(map(lambda m: m.num_classes, final_models)))
             if len(final_models) == 1:
                 logger.trace("Just one model to train (multi-task: off)\n => Final model: {}", final_models[0])
@@ -417,12 +434,12 @@ def run(runs: int,
             # Train and test the model
             if output_root_path is None:
                 output_root_path = Path("output").joinpath(
-                    "+".join(map(lambda p: p.name, ensure_list(train_data_path)))
+                    "+".join(map(lambda p: p.stem, train_data_path))
                 ).joinpath(
                     "{}2{}{}".format(
-                        "_".join(ensure_list(fct_input_process)),
+                        "_".join(fct_input_process),
                         "2",
-                        "_".join(ensure_list(fct_output_process)),
+                        "_".join(fct_output_process),
                         "" if max_length is None else f"_max{max_length}tokens",
                     )
                 ).joinpath(
@@ -442,7 +459,7 @@ def run(runs: int,
                 validation_data=final_processed_data["dev"],
                 test_data=final_processed_data.get("test"),
                 root_path=output_root_path,
-                monitoring_metric=f"val__f1Micro_{final_models[0].task_name}" if early_stopping else None
+                monitoring_metric=f"val_f1Micro_{final_models[0].task_name}" if early_stopping else None
             )
             logger.success("DONE (Run {}/{})", current_run, runs)
         except Exception:

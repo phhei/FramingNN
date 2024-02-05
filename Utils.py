@@ -4,6 +4,8 @@ Utils for the approaches
 import math
 from typing import Union, Optional, Tuple, List, Dict
 
+from tqdm import tqdm
+
 # We executed the code on strong CPU clusters without an GPU (ssh compute). Because of this extraordinary
 # executing environment, we introduce this flag. To reproduce the results in the paper, enable this flag.
 execute_on_ssh_compute = False
@@ -360,13 +362,21 @@ def load_csv(data_set: str, frames: Frames, filter_unknown_frames=True, shuffle_
     return data
 
 
+word_vector_map_loaded = dict()
+
+
 def load_word_embeddings(glove_file: pathlib.Path, embedding_size: int) -> dict:
+    if glove_file.stem in word_vector_map_loaded:
+        logger.debug("You already loaded the word embeddings from \"{}\"", glove_file.name)
+        return word_vector_map_loaded[glove_file.stem]
+
     logger.info("Load word embeddings from \"{}\" ({}d)", glove_file.absolute(), embedding_size)
 
     word_vector_map = dict()
     if glove_file.exists():
         with glove_file.open(mode="r", encoding="utf-8") as reader:
-            for line in reader:
+            for line in tqdm(iterable=reader, desc="Read word embeddings",
+                             unit="lines", colour="black", mininterval=0.25):
                 word_vector_map[line[:line.index(" ")].strip()] = numpy.fromstring(line[line.index(" "):].strip(),
                                                                                    dtype="float32", sep=" ",
                                                                                    count=embedding_size)
@@ -377,6 +387,7 @@ def load_word_embeddings(glove_file: pathlib.Path, embedding_size: int) -> dict:
         exit(-10)
 
     logger.debug("Loaded {} word embeddings", len(word_vector_map))
+    word_vector_map_loaded[glove_file.stem] = word_vector_map
     return word_vector_map
 
 
