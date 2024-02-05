@@ -434,7 +434,8 @@ def run(runs: int,
             # Train and test the model
             if output_root_path is None:
                 output_root_path = Path(".out").joinpath(
-                    "+".join(map(lambda p: p.stem, train_data_path))
+                    "{}ON{}".format("+".join(map(lambda p: p.stem.lower(), train_data_path)),
+                                    "+".join(map(lambda p: p.stem.lower(), test_data_path)))
                 ).joinpath(
                     "{}2{}{}".format(
                         "_".join(fct_input_process),
