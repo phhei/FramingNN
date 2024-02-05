@@ -338,7 +338,7 @@ class ClassificationModule(LightningModule):
             val_logger.log(name="test_loss_{}".format(self.task_name), value=loss, prog_bar=False, logger=False,
                            on_epoch=True)
             self.metric_log(prediction=output, target=y, metric_logger=val_logger, split="test")
-            prediction_path = Path(".predictions").joinpath(self.task_name).joinpath("test set")
+            prediction_path = Path(".out").joinpath(".predictions").joinpath(self.task_name).joinpath("test set")
             prediction_path.mkdir(parents=True, exist_ok=True)
             prediction_path.joinpath("batch_{}.csv".format(batch_idx)).write_text(
                 data="Predicted class,Predicted Prob,True class\n{}".format(
