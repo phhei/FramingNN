@@ -266,16 +266,16 @@ def run(runs: int,
             #     df[df.genericFrame != "__UNKNOWN__"] if dp.parent.parent.name == "MediaFramesCorpus" else df
             #     for df, dp in zip(data_df[key], data_path)
             # ]
+            data_df[key] = [
+                df.iloc[int(frac[0]*len(df)):int(frac[1]*len(df))]
+                for df, frac in zip(data_df[key], data_frac)
+            ]
             if bool(shuffle_data):
+                logger.debug("Shuffle data (seed: {})", shuffle_data if isinstance(shuffle_data, int) else "not given")
                 data_df[key] = [
-                    df.sample(frac=abs(frac[0]-frac[1]), replace=False,
-                              random_state=shuffle_data if isinstance(shuffle_data, int) else None)
-                    for df, frac in zip(data_df[key], data_frac)
-                ]
-            else:
-                data_df[key] = [
-                    df.iloc[int(frac[0]*len(df)):int(frac[1]*len(df))]
-                    for df, frac in zip(data_df[key], data_frac)
+                    df.sample(
+                        frac=1, replace=False, random_state=shuffle_data if isinstance(shuffle_data, int) else None
+                    ) for df in data_df[key]
                 ]
             logger.debug("Loaded {} {} dataframes ({} instances in total)",
                          len(data_df[key]), key, sum(map(len, data_df[key])))
