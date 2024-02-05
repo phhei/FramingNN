@@ -433,14 +433,13 @@ def run(runs: int,
 
             # Train and test the model
             if output_root_path is None:
-                output_root_path = Path("output").joinpath(
+                output_root_path = Path(".out").joinpath(
                     "+".join(map(lambda p: p.stem, train_data_path))
                 ).joinpath(
                     "{}2{}{}".format(
                         "_".join(fct_input_process),
-                        "2",
                         "_".join(fct_output_process),
-                        "" if max_length is None else f"_max{max_length}tokens",
+                        "" if max_length is None else f"_max{max_length}tokens"
                     )
                 ).joinpath(
                     model
