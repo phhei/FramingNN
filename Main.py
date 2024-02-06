@@ -16,11 +16,12 @@ import PyModels
 import Utils
 from PyDataset import (process_x, process_x_rnn, process_x_llm, process_y_categorical, process_y_cluster,
                        process, finish_datasets)
+from PyModelUnits import LinearNNEncoder
 
 T = TypeVar("T")
 input_fct_mapper = {
     "w2v": process_x,
-    "general_w2v": process_x,
+    "basic_w2v": process_x,
     "rnn_w2v": process_x_rnn,
     "rnn": process_x_rnn,
     "llm": process_x_llm,
@@ -156,7 +157,7 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
     default="rnn",
     show_default=True,
     help="You can specify the model (type) to use here",
-    type=click.Choice(["rnn", "gru", "lstm", "transformer"], case_sensitive=False)
+    type=click.Choice(["nn", "rnn", "gru", "lstm", "transformer"], case_sensitive=False)
 )
 @click.option(
     "--model_params", "-mp",
@@ -367,7 +368,14 @@ def run(runs: int,
 
             # Define model
             logger.debug("Define model ({} given)", model)
-            if model.lower() in ["rnn", "gru", "lstm"]:
+            if model.lower() == "nn":
+                model_class = LinearNNEncoder
+                _model_params = {
+                    "activation_module": "ReLU",
+                    "in_features": 300,
+                    "out_features": 128
+                }
+            elif model.lower() in ["rnn", "gru", "lstm"]:
                 model_class = torch.nn.RNN if model.lower() == "rnn" else (
                     torch.nn.GRU) if model.lower() == "gru" else torch.nn.LSTM
                 _model_params = {
@@ -379,17 +387,16 @@ def run(runs: int,
                     "batch_first": True,
                     "bidirectional": True
                 }
-                _model_params.update(model_params or dict())
             elif model == "transformer":
                 model_class = transformers.AutoModel
                 _model_params = {
                     "pretrained_model_name_or_path": "roberta-base",
                     "return_dict": True
                 }
-                _model_params.update(model_params or dict())
             else:
                 raise ValueError(f"Unknown model {model}")
 
+            _model_params.update(model_params or dict())
             core_models = [model_class(**_model_params)]*len(train_data_path) \
                 if hard_parameter_sharing else \
                 [model_class(**_model_params) for _ in range(len(train_data_path))]

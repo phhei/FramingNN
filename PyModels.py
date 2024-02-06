@@ -15,6 +15,8 @@ from transformers import PreTrainedModel
 
 from json import dump as json_dump
 
+import PyModelUnits
+
 
 def setup_train(module: LightningModule, root_path: Path,
                 training_data, validation_data, test_data: Optional = None,
@@ -151,10 +153,15 @@ class ClassificationModule(LightningModule):
                          "XXX, return_dict=True)")
             out_features = self.core_model.config.hidden_size
         else:
-            if isinstance(core_model, torch.nn.LSTM) or isinstance(core_model, torch.nn.GRU):
+            if isinstance(core_model, torch.nn.RNNBase):
                 out_features = core_model.hidden_size*(1+int(core_model.bidirectional))
                 logger.debug("Core model is RNN, using hidden size as input to classification layer ({}->{})",
                              out_features, num_classes)
+            elif isinstance(core_model, PyModelUnits.LinearNNEncoder):
+                out_features = core_model.in_layer.out_features*2
+                logger.info("Core model is LinearNNEncoder, using the doubled output size (mean, std) as input to "
+                            "classification layer ({}->{})",
+                            out_features, num_classes)
             elif isinstance(core_model, torch.nn.Linear):
                 out_features = core_model.out_features
                 logger.info("Core model is Linear (unusual), using output size as input "
@@ -197,14 +204,11 @@ class ClassificationModule(LightningModule):
                 tensors=[instance[-1] for instance in torch.nn.utils.rnn.unpack_sequence(output_core)],
                 dim=0
             )
+        elif isinstance(self.core_model, PyModelUnits.LinearNNEncoder):
+            output_core = self.core_model(**kwargs)
         else:
-            x = _pop_tensor_from_kwargs(key=["x", "input"])
-            if x is None:
-                logger.error("No input provided, expect \"x\" or \"input\"")
-                output_core = torch.zeros((1, self.core_model.hidden_size))
-            else:
-                output_core = self.core_model(x)[0]
-                output_core = output_core[:, -1, :]
+            logger.error("Core model is not supported yet: {}", self.core_model.__class__.__name__)
+            output_core = torch.zeros((1, self.core_model.out_features))
         output_logits = self.fc(self.dropout(output_core))
         if y is None:
             logger.trace("No labels provided, returning only output, no loss")
