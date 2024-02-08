@@ -65,8 +65,8 @@ class UserLabelCluster:
 
         :param user_labels: the user label which will be available during training (do NOT input user labels
             = frames which are in validation or even test data!)
-        :param word2vec_dict: the embedding dictionary, for example glove
-        :param cluster_k: how many clusters di you want to have? Must be lower equal the number of user labels.
+        :param word2vec_dict: the embedding dictionary, for example, glove
+        :param cluster_k: how many clusters do you want to have? Must be lower or equal the number of user labels.
             However, there are some special cases:
             <ul>
                 <li> 1: only one cluster, so, there is nothing to predict (making wrong)</li>
@@ -82,7 +82,7 @@ class UserLabelCluster:
         :param semantic_clustering: determines whether a semantic clustering should be enabled.
             <ul>
                 <li><code>True</code>: user labels go through a preprocessing:
-                removing stopwords, emphasise keywords, ...</li>
+                removing stopwords, emphasize keywords, ...</li>
                 <li><code>False:</code>: plain vanilla user label is used</li>
             </ul>
         """
@@ -92,6 +92,10 @@ class UserLabelCluster:
         self.classes_to_one_hot_encode_dict = dict()
         self.word2vec_dict = word2vec_dict
         self.word2vec_embedding_size = word2vec_embedding_size
+        for i in range(1, 5):
+            if word2vec_embedding_size % i != 0:
+                logger.warning("The word2vec_embedding_size ({}) is not divisible by {}. "
+                               "This may lead to problems with the word embeddings!", word2vec_embedding_size, i)
         self.cluster_k = cluster_k
 
         self.semantic_clustering = semantic_clustering
@@ -124,10 +128,35 @@ class UserLabelCluster:
                 pickle.dump((self.cluster, self.classes_to_one_hot_encode_dict), path.open(mode="wb"))
                 logger.trace("Pickling done: {}", path.stat())
         elif self.cluster_k == -1:
-            logger.warning("You disabled the clustering!"
+            logger.warning("You disabled the clustering! "
                            "Hence, it's possible that further predictions will lead to outputs like"
                            "\"Your input is in no particular \"class\"\"")
             self.classes_to_one_hot_encode_dict = {f: i for i, f in enumerate(self.classes)}
+
+    @classmethod
+    def from_pickle(cls, path: pathlib.Path, word2vec_dict: dict, word2vec_embedding_size=300):
+        """
+        :param path: the path to the pickle file
+        :param word2vec_dict: the word2vec dictionary
+        :param word2vec_embedding_size: the size of the word2vec embedding
+        :return: a UserLabelCluster object
+        """
+        if path.exists():
+            logger.debug("You want to load a UserLabelCluster from \"{}\"", path.absolute())
+            with path.open(mode="rb") as fs:
+                cluster, classes_to_one_hot_encode_dict = pickle.load(fs)
+            ret = cls.__new__(cls)
+            ret.classes = list(classes_to_one_hot_encode_dict.keys())
+            ret.classes_to_one_hot_encode_dict = classes_to_one_hot_encode_dict
+            ret.word2vec_dict = word2vec_dict
+            ret.word2vec_embedding_size = word2vec_embedding_size
+            ret.cluster = cluster
+            ret.cluster_k = ret.cluster.num_clusters()
+            ret.semantic_clustering = "semantic" in path.name
+            return ret
+        else:
+            logger.error("The path \"{}\" does not exist - no UserLabelCluster loaded!", path.absolute())
+            return None
 
     def insert_class(self, user_label: str) -> None:
         """

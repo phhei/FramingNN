@@ -37,6 +37,7 @@ target_fct_mapper = {
     "cluster_5": process_y_cluster,
     "cluster_10": process_y_cluster,
     "cluster_15": process_y_cluster,
+    "cluster_mediaframes": process_y_cluster,
     "cluster_25": process_y_cluster,
     "cluster_100": process_y_cluster,
 }
@@ -70,7 +71,8 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
 @click.option(
     "--train_data_path", "-train",
     multiple=True,
-    help="You can specify the path to the training data here (should be preprocessed). "
+    help="You can specify the path to the training data here (should be preprocessed by "
+         "Corpora/UserFrames2GenericFrames.py). "
          "Define multiple paths (by setting several -train <value>) in case of multi-task learning",
     type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path)
 )
@@ -87,7 +89,8 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
 @click.option(
     "--dev_data_path", "-dev", "-val",
     multiple=True,
-    help="You can specify the path to the development data here (should be preprocessed). "
+    help="You can specify the path to the development data here (should be preprocessed by "
+         "Corpora/UserFrames2GenericFrames.py). "
          "Define multiple paths (by setting several -dev <value> <value>) in case of multi-task learning",
     type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path)
 )
@@ -104,7 +107,8 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
 @click.option(
     "--test_data_path", "-test",
     multiple=True,
-    help="You can specify the path to the testing data here (should be preprocessed). "
+    help="You can specify the path to the testing data here (should be preprocessed by "
+         "Corpora/UserFrames2GenericFrames.py). "
          "Define multiple paths (by setting several -test <value>) in case of multi-task learning",
     type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path)
 )
@@ -335,13 +339,20 @@ def run(runs: int,
                     {name: i for i, name in enumerate(Frames.most_frequent_media_frames_set.frame_names)}
                 f_num_classes = len(Frames.most_frequent_media_frames_set.frame_names)
             elif fct_out.startswith("cluster"):
-                f_num_classes = int(fct_out.split("_")[1]) if "_" in fct_out else 15
-                cluster_file = Path("clusters/9860x300d_semantic_{}c_{}.pkl".format(f_num_classes, f_current_run))
+                if fct_out == "cluster_mediaframes":
+                    cluster_file = Path("clusters/mediaframesx300d_semantic_15c.pkl")
+                else:
+                    f_num_classes = int(fct_out.split("_")[1]) if "_" in fct_out else 15
+                    cluster_file = Path("clusters/9860x300d_semantic_{}c_{}.pkl".format(f_num_classes, f_current_run))
                 logger.info("Load cluster file for {}: {}", fct_out, cluster_file.absolute())
-                with cluster_file.open(mode="rb") as f:
-                    fct_out_params["cluster"] = pickle.load(f)
+                fct_out_params["cluster"] = Utils.UserLabelCluster.from_pickle(
+                    path=cluster_file,
+                    word2vec_dict=Utils.load_word_embeddings(
+                        glove_file=Path("../../_wordEmbeddings/glove/glove.840B.300d.txt"),
+                        embedding_size=300
+                    ), word2vec_embedding_size=300)
             logger.debug("Preprocess {}. target data with function \"{}\" and parameters: {}",
-                         i, fct_out, fct_out_params)
+                         i, fct_out, "/".join(map(lambda kv: f"{kv[0]}:{kv[1] if isinstance(kv[1], bool) or isinstance(kv[1], int) or isinstance(kv[1], str) else type(kv[1])}", fct_out_params.items())))
 
             for split, data in data_df.items():
                 logger.trace("Process {}=>{}. data", split, i)
