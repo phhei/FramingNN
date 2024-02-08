@@ -198,7 +198,7 @@ class UserLabelCluster:
             final_label_tokens = [t_tag[0] for t_tag in tagged_label if t_tag[1] == "NOUN"] + \
                                  [t_tag[0] for t_tag in tagged_label if t_tag[1] == "VERB"] + \
                                  [t_tag[0] for t_tag in tagged_label if t_tag[1] not in ["NOUN", "VERB"]]
-        logger.debug("Converted the user label \"{}\" to \"{}\"", user_label, " ".join(final_label_tokens))
+        logger.trace("Converted the user label \"{}\" to \"{}\"", user_label, " ".join(final_label_tokens))
         if len(final_label_tokens) > 4:
             logger.warning("The label {} has more than 4 tokens: {}. Discard {}", final_label_tokens,
                            len(final_label_tokens), final_label_tokens[4:])

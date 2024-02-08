@@ -340,6 +340,7 @@ def run(runs: int,
                 f_num_classes = len(Frames.most_frequent_media_frames_set.frame_names)
             elif fct_out.startswith("cluster"):
                 if fct_out == "cluster_mediaframes":
+                    f_num_classes = 15
                     cluster_file = Path("clusters/mediaframesx300d_semantic_15c.pkl")
                 else:
                     f_num_classes = int(fct_out.split("_")[1]) if "_" in fct_out else 15
@@ -351,6 +352,9 @@ def run(runs: int,
                         glove_file=Path("../../_wordEmbeddings/glove/glove.840B.300d.txt"),
                         embedding_size=300
                     ), word2vec_embedding_size=300)
+                fct_out_params["frame_kind"] = "frame"
+                logger.info("Set frame_kind to \"{}\" since we are using a cluster function, assuming that you want "
+                            "to process the Webis-data", fct_out_params["frame_kind"])
             logger.debug("Preprocess {}. target data with function \"{}\" and parameters: {}",
                          i, fct_out, "/".join(map(lambda kv: f"{kv[0]}:{kv[1] if isinstance(kv[1], bool) or isinstance(kv[1], int) or isinstance(kv[1], str) else type(kv[1])}", fct_out_params.items())))
 
@@ -414,7 +418,7 @@ def run(runs: int,
             logger.debug("Creates {} core model(s): {}", len(core_models), core_models[0])
 
             # Ensure actual data:
-            if any(map(lambda f_o: f_o.startswith("cluster"), fct_output_process)):
+            if any(map(lambda f_o: f_o.startswith("cluster") and f_o != "cluster_mediaframes", fct_output_process)):
                 logger.debug("Ensure actual data for cluster model")
                 final_processed_data, num_classes = process_data(
                     f_fct_input_process=fct_input_process,

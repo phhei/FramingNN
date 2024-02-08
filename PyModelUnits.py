@@ -35,7 +35,7 @@ class LinearNNEncoder(torch.nn.Module):
                         self.activation_module(self.in_layer(tensor_slice))
                     )
 
-            logger.debug("Encoded {} tensor slices (e.g. word embeddings)", len(conv_in_tensors))
+            logger.trace("Encoded {} tensor slices (e.g. word embeddings)", len(conv_in_tensors))
 
             if len(conv_in_tensors) == 1:
                 logger.warning("Only a single slice (one token in this sample/ text split) - "

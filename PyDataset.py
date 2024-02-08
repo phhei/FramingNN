@@ -179,11 +179,12 @@ def process_y_cluster(df: DataFrame, cluster: UserLabelCluster, frame_kind: str 
         logger.debug("Media-Frames-oriented cluster detected: {} classes", len(cluster.classes))
         cluster_index_to_frame_index = dict()
         frames = Frames.media_frames_set if cluster.cluster_k in [14, 15] else Frames.most_frequent_media_frames_set
-        set_dict = {set(c): i for c, i in cluster.classes_to_one_hot_encode_dict.items()}
-        for i, frame_name in enumerate(frames.get_all_frame_names(tokenized=True, lower=True)):
-            if set(frame_name) in set_dict:
-                logger.trace("Frame \"{}\" is in the cluster on position {}", frame_name, set_dict[set(frame_name)])
-                cluster_index_to_frame_index[set_dict[set(frame_name)]] = i
+        set_dict = {frozenset(c): i for c, i in cluster.classes_to_one_hot_encode_dict.items()}
+        for i, frame_name in enumerate(frames.get_all_frame_names(tokenized=False, lower=True)):
+            set_frame_name = frozenset(cluster.convert_label(frame_name))
+            if set_frame_name in set_dict:
+                logger.trace("Frame \"{}\" is in the cluster on position {}", frame_name, set_dict[set_frame_name])
+                cluster_index_to_frame_index[set_dict[set_frame_name]] = i
             else:
                 logger.debug("Frame \"{}\" is not in the cluster. This is expected with including \"other\", else... "
                              "something went wrong", frame_name)
@@ -191,7 +192,7 @@ def process_y_cluster(df: DataFrame, cluster: UserLabelCluster, frame_kind: str 
         if len(open_indexes) >= 1:
             logger.warning("There are {} frames in the cluster, which are not in the frame set: {}=>{}",
                            len(open_indexes), open_indexes, cluster.cluster_k)
-            cluster_index_to_frame_index.update({i: cluster.cluster_k for i in open_indexes})
+            cluster_index_to_frame_index.update({i: cluster.cluster_k-1 for i in open_indexes})
         logger.debug("Cluster index to frame index finished: {}",
                      ", ".join(map(lambda kv: f"{kv[0]}=>{kv[1]}", cluster_index_to_frame_index.items())))
         encodings_y = [cluster_index_to_frame_index[y] for y in encodings_y]
