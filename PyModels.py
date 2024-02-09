@@ -19,7 +19,7 @@ import PyModelUnits
 
 
 def setup_train(module: LightningModule, root_path: Path,
-                training_data, validation_data, test_data: Optional = None,
+                training_data, validation_data, test_data: Optional = None, metric_file_name: Optional[str] = None,
                 monitoring_metric: Optional[str] = None) -> None:
     """
     Set up the trainer and train the model -- and test it. CORE METHOD
@@ -34,6 +34,8 @@ def setup_train(module: LightningModule, root_path: Path,
     (see here https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningDataModule.html /
     https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningDataModule.html#lightning.pytorch.core.LightningDataModule.from_datasets)
     Here, you define the batch size, too.
+    :param metric_file_name: the name of the file to store the metrics
+    (if not given, the file is named "test_metrics_{TASK}"). Useful if you have other test data than the train data
     :param monitoring_metric: The metric which should be monitored to save the best model weights/ early stopping.
     If no metric is given, there is no early stopping (12 epochs), and the last model weights are saved
     :return: Nothing - the model weights are adapted in place
@@ -84,22 +86,32 @@ def setup_train(module: LightningModule, root_path: Path,
 
     logger.success("Setting up trainer: {}", trainer)
 
-    trainer.fit(module, train_dataloaders=training_data, val_dataloaders=validation_data)
-    print(trainer.logged_metrics)
+    if not root_path.exists() or not root_path.joinpath("lightning_logs").exists():
+        trainer.fit(module, train_dataloaders=training_data, val_dataloaders=validation_data)
+        logger.success("Finished training: {} epochs, {} batches", trainer.current_epoch, trainer.global_step)
+        logger.info("Last performance: {}",
+                    "/".join([f"{k}: {round(v.cpu().item(), 3) if isinstance(v, torch.Tensor) else v}"
+                              for k, v in trainer.logged_metrics.items()]))
+    else:
+        logger.warning("Root path {} already exists (trained), skipping training {}",
+                       root_path.absolute(),
+                       "and testing" if monitoring_metric is None else "and just load the best model weights")
 
-    logger.success("Finished training: {} epochs, {} batches", trainer.current_epoch, trainer.global_step)
-    logger.info("Last performance: {}",
-                "/".join([f"{k}: {round(v.cpu().item(), 3) if isinstance(v, torch.Tensor) else v}"
-                          for k, v in trainer.logged_metrics.items()]))
     if monitoring_metric is not None:
         logger.info("Loading best model weights")
-        saved_states = list(root_path.joinpath(f"model_weights-{monitoring_metric}").glob("*.ckpt"))
-        logger.info("Found {} saved states", len(saved_states))
-        if len(saved_states) > 0:
-            ckpt = torch.load(saved_states[-1])
-            logger.success("Loading last saved state from \"{}\" (from epoch: {})",
-                           saved_states[-1], ckpt.get("epoch", "unknown"))
-            module.load_state_dict(ckpt["state_dict"])
+        model_weights_path = root_path.joinpath(f"model_weights-{monitoring_metric}")
+        if model_weights_path.exists():
+            saved_states = list(model_weights_path.glob("*.ckpt"))
+            logger.info("Found {} saved states", len(saved_states))
+            if len(saved_states) > 0:
+                ckpt = torch.load(saved_states[-1])
+                logger.success("Loading last saved state from \"{}\" (from epoch: {})",
+                               saved_states[-1], ckpt.get("epoch", "unknown"))
+                module.load_state_dict(ckpt["state_dict"])
+            else:
+                logger.debug("\"{}\" was not found...", model_weights_path.absolute())
+                logger.error("No saved states found for the metric \"{}\", you might skip training because the path "
+                             "already exists -- but with another used monitoring metric?", monitoring_metric)
 
     if test_data is not None:
         try:
@@ -121,9 +133,12 @@ def setup_train(module: LightningModule, root_path: Path,
                        lambda kv: f"\t{kv[0]}: {kv[1]:.3f}",
                        mkv.items())
                    ), listed_test_metrics)))
+
     logger.trace("Let's store the results in the root path")
     for i, metrics in enumerate(listed_test_metrics):
-        with root_path.joinpath(f"test_metrics_{i}.txt").open(mode="w", encoding="utf-8") as fs:
+        with root_path.joinpath(
+                f"test_metrics_{i}.txt" if metric_file_name is None else f"test_metrics_{metric_file_name}-{i}.txt"
+        ).open(mode="w", encoding="utf-8") as fs:
             json_dump(obj=metrics, fp=fs, indent=2, sort_keys=True)
 
 

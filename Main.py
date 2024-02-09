@@ -456,8 +456,7 @@ def run(runs: int,
             # Train and test the model
             if output_root_path is None:
                 output_root_path = Path(".out").joinpath(
-                    "{}ON{}".format("+".join(map(lambda p: p.stem.lower(), train_data_path)),
-                                    "+".join(map(lambda p: p.stem.lower(), test_data_path)))
+                    "+".join(map(lambda p: p.stem.lower(), train_data_path))
                 ).joinpath(
                     "{}2{}{}".format(
                         "_".join(fct_input_process),
@@ -481,6 +480,7 @@ def run(runs: int,
                 validation_data=final_processed_data["dev"],
                 test_data=final_processed_data.get("test"),
                 root_path=output_root_path,
+                metric_file_name="+".join(map(lambda p: p.stem.lower(), test_data_path)),
                 monitoring_metric=f"val_f1Micro_{final_models[0].task_name}" if early_stopping else None
             )
             logger.success("DONE (Run {}/{})", current_run, runs)
