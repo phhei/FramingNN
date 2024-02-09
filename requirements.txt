@@ -17,5 +17,5 @@ transformers>=4.11
 
 regex
 keras
-lightning~=2.1.3
-torchmetrics~=1.3.0.post0
+lightning>=2,~=2.1.3
+torchmetrics>=1.1.2,<=1.3.*

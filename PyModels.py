@@ -212,6 +212,10 @@ class ClassificationModule(LightningModule):
         if isinstance(self.core_model, PreTrainedModel):
             output_core = self.core_model(**kwargs).last_hidden_state[:, 0, :]
         elif isinstance(self.core_model, torch.nn.RNNBase):
+            if torch.cuda.is_available() and "lengths" in kwargs:
+                logger.trace("Lengths are moved on a GPU (mistaken from pytorch lightning), "
+                             "moving back to CPU as it is required by Pytorch")
+                kwargs["lengths"] = kwargs["lengths"].cpu()
             output_core = self.core_model(
                 torch.nn.utils.rnn.pack_padded_sequence(**kwargs, batch_first=True, enforce_sorted=False)
             )[0]
