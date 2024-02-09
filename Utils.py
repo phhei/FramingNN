@@ -17,7 +17,7 @@ import pickle
 import random
 import datetime
 from functools import reduce
-import word_mover_distance.model as word_mover_distance
+# import word_mover_distance.model as word_mover_distance
 
 import loguru
 import tensorflow
@@ -494,52 +494,52 @@ def compute_y_frame_distribution(samples: List[Dict], frames: Union[GenericFrame
     return ret
 
 
-def compute_y_user_label_to_generic_frame_distribution(samples: List[Dict], word2vec: Dict, frames: GenericFrame,
-                                                       enable_fuzzy_framing=False,
-                                                       enable_other_class=True) -> numpy.ndarray:
-    num_samples = len(samples)
-
-    model = word_mover_distance.WordEmbedding(model=word2vec)
-    logger.trace("Created a word_mover_distance-model: {}", model)
-    frames_tokens = frames.get_all_frame_names(tokenized=True, lower=True)
-    logger.debug("We will compute the distances to the following frames: {}", ", ".join(frames.frame_names))
-
-    ret = numpy.zeros(shape=(num_samples,
-                             frames.get_prediction_vector_length(ignore_unknown=not enable_other_class)),
-                      dtype="float32")
-    logger.debug("Created a return-template of shape {}", ret.shape)
-    for i, sample in enumerate(samples):
-        frame = re.sub(string=sample.get("frame", "unknown").strip("\"' "),
-                       pattern="(?<=\w)\/(?=\w)", repl=" ", count=1)
-        logger.trace("Fetched a label (user frame): {}", frame)
-        frame_tokens = [t.lower() for t in nltk.word_tokenize(text=frame, language="english", preserve_line=False)]
-        logger.trace("Will compute the word-movers-distance to [{}]", "-".join(frame_tokens))
-
-        word_movers_distances = numpy.zeros(shape=(frames.get_prediction_vector_length(ignore_unknown=not enable_other_class),),
-                                            dtype="float32")
-
-        for j, generic_frame_tokens in enumerate(frames_tokens):
-            word_movers_distances[j] = model.wmdistance(document1=frame_tokens, document2=generic_frame_tokens)
-        if enable_other_class:
-            word_movers_distances[-1] = (numpy.max(word_movers_distances)-numpy.min(word_movers_distances[:-1])) *\
-                                        word_movers_distances.shape[0] * 0.5
-
-        logger.trace("Total distribution: {} (not normalized)", word_movers_distances)
-        if enable_fuzzy_framing:
-            word_movers_closeness = numpy.add(numpy.negative(word_movers_distances), numpy.max(word_movers_distances))
-            ret[i] = numpy.divide(word_movers_closeness, max(numpy.array(0.001, dtype="float32"),
-                                                             numpy.sum(word_movers_closeness)))
-        else:
-            min_index = 0
-            min_distance = word_movers_distances[0]
-            for j, d in enumerate(word_movers_distances):
-                if d < min_distance:
-                    min_index = j
-                    min_distance = d
-
-            ret[i, min_index] = 1.0
-
-    return ret
+# def compute_y_user_label_to_generic_frame_distribution(samples: List[Dict], word2vec: Dict, frames: GenericFrame,
+#                                                        enable_fuzzy_framing=False,
+#                                                        enable_other_class=True) -> numpy.ndarray:
+#     num_samples = len(samples)
+#
+#     model = word_mover_distance.WordEmbedding(model=word2vec)
+#     logger.trace("Created a word_mover_distance-model: {}", model)
+#     frames_tokens = frames.get_all_frame_names(tokenized=True, lower=True)
+#     logger.debug("We will compute the distances to the following frames: {}", ", ".join(frames.frame_names))
+#
+#     ret = numpy.zeros(shape=(num_samples,
+#                              frames.get_prediction_vector_length(ignore_unknown=not enable_other_class)),
+#                       dtype="float32")
+#     logger.debug("Created a return-template of shape {}", ret.shape)
+#     for i, sample in enumerate(samples):
+#         frame = re.sub(string=sample.get("frame", "unknown").strip("\"' "),
+#                        pattern="(?<=\w)\/(?=\w)", repl=" ", count=1)
+#         logger.trace("Fetched a label (user frame): {}", frame)
+#         frame_tokens = [t.lower() for t in nltk.word_tokenize(text=frame, language="english", preserve_line=False)]
+#         logger.trace("Will compute the word-movers-distance to [{}]", "-".join(frame_tokens))
+#
+#         word_movers_distances = numpy.zeros(shape=(frames.get_prediction_vector_length(ignore_unknown=not enable_other_class),),
+#                                             dtype="float32")
+#
+#         for j, generic_frame_tokens in enumerate(frames_tokens):
+#             word_movers_distances[j] = model.wmdistance(document1=frame_tokens, document2=generic_frame_tokens)
+#         if enable_other_class:
+#             word_movers_distances[-1] = (numpy.max(word_movers_distances)-numpy.min(word_movers_distances[:-1])) *\
+#                                         word_movers_distances.shape[0] * 0.5
+#
+#         logger.trace("Total distribution: {} (not normalized)", word_movers_distances)
+#         if enable_fuzzy_framing:
+#             word_movers_closeness = numpy.add(numpy.negative(word_movers_distances), numpy.max(word_movers_distances))
+#             ret[i] = numpy.divide(word_movers_closeness, max(numpy.array(0.001, dtype="float32"),
+#                                                              numpy.sum(word_movers_closeness)))
+#         else:
+#             min_index = 0
+#             min_distance = word_movers_distances[0]
+#             for j, d in enumerate(word_movers_distances):
+#                 if d < min_distance:
+#                     min_index = j
+#                     min_distance = d
+#
+#             ret[i, min_index] = 1.0
+#
+#     return ret
 
 
 def compute_y_word_embedding(samples: List[dict], word_vector_map: dict, embedding_length: int, filter_stop_words=True,
