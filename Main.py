@@ -403,7 +403,7 @@ def run(runs: int,
                     "bidirectional": True
                 }
             elif model == "transformer":
-                model_class = transformers.AutoModel
+                model_class = transformers.AutoModel.from_pretrained
                 _model_params = {
                     "pretrained_model_name_or_path": "roberta-base",
                     "return_dict": True
@@ -420,6 +420,7 @@ def run(runs: int,
             # Ensure actual data:
             if any(map(lambda f_o: f_o.startswith("cluster") and f_o != "cluster_mediaframes", fct_output_process)):
                 logger.debug("Ensure actual data for cluster model")
+                del final_processed_data
                 final_processed_data, num_classes = process_data(
                     f_fct_input_process=fct_input_process,
                     f_fct_output_process=fct_output_process,
