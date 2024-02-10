@@ -480,16 +480,16 @@ def run(runs: int,
                     f"sharing{'All' if hard_parameter_sharing else ('None' if soft_parameter_sharing is None else soft_parameter_sharing)}_"
                     f"{'earlystopped' if early_stopping else ''}"
                 )
-            output_root_path = output_root_path.joinpath(f"Run{current_run:>02}")
-            output_root_path.mkdir(parents=True, exist_ok=True)
-            logger.info("Finally, train the model (\"{}\")", output_root_path.name)
-            logger.debug("Stores logging/ weights to: \"{}\"", output_root_path.absolute())
+            output_root_path.joinpath(f"Run{current_run:>02}").mkdir(parents=True, exist_ok=True)
+            logger.info("Finally, train the model (\"{}\")", output_root_path.joinpath(f"Run{current_run:>02}").name)
+            logger.debug("Stores logging/ weights to: \"{}\"",
+                         output_root_path.joinpath(f"Run{current_run:>02}").absolute())
             PyModels.setup_train(
                 module=final_train_object,
                 training_data=final_processed_data["train"],
                 validation_data=final_processed_data["dev"],
                 test_data=final_processed_data.get("test"),
-                root_path=output_root_path,
+                root_path=output_root_path.joinpath(f"Run{current_run:>02}"),
                 metric_file_name="+".join(map(lambda p: p.stem.lower(), test_data_path)),
                 monitoring_metric=f"val_f1Micro_{final_models[0].task_name}" if early_stopping else None,
                 free_space=not keep_model_weights

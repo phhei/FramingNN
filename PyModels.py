@@ -157,6 +157,9 @@ def setup_train(module: LightningModule, root_path: Path,
             )
             if model_weights_file.stat().st_size >= 1024**2:
                 model_weights_file.unlink()
+                model_weights_file.parent.joinpath(".deleted").write_text(
+                    data=f"deleted {model_weights_file}", encoding="utf-8", errors="ignore"
+                )
         logger.debug("CLOSING === Freed space by deleting model weights === CLOSING")
 
 
