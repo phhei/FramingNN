@@ -20,7 +20,7 @@ import PyModelUnits
 
 def setup_train(module: LightningModule, root_path: Path,
                 training_data, validation_data, test_data: Optional = None, metric_file_name: Optional[str] = None,
-                monitoring_metric: Optional[str] = None) -> None:
+                monitoring_metric: Optional[str] = None, free_space:bool = False) -> None:
     """
     Set up the trainer and train the model -- and test it. CORE METHOD
 
@@ -38,6 +38,7 @@ def setup_train(module: LightningModule, root_path: Path,
     (if not given, the file is named "test_metrics_{TASK}"). Useful if you have other test data than the train data
     :param monitoring_metric: The metric which should be monitored to save the best model weights/ early stopping.
     If no metric is given, there is no early stopping (12 epochs), and the last model weights are saved
+    :param free_space: If True, the saved model weights are deleted after the evaluation at the end of this method
     :return: Nothing - the model weights are adapted in place
     """
 
@@ -140,6 +141,23 @@ def setup_train(module: LightningModule, root_path: Path,
                 f"test_metrics_{i}.txt" if metric_file_name is None else f"test_metrics_{metric_file_name}-{i}.txt"
         ).open(mode="w", encoding="utf-8") as fs:
             json_dump(obj=metrics, fp=fs, indent=2, sort_keys=True)
+
+    if free_space:
+        logger.debug("CLOSING === Freeing space by deleting model weights === CLOSING")
+        model_weights_files = root_path.rglob(pattern="*.ckpt")
+        for model_weights_file in model_weights_files:
+            if model_weights_file.is_dir():
+                logger.debug("Skipping directory {}", model_weights_file.name)
+                continue
+            logger.info(
+                "We free space here: {} ({} MB)",
+                model_weights_file,
+                round(model_weights_file.stat().st_size/1024/1024, 1)
+                if model_weights_file.stat().st_size >= 1024**2 else 0
+            )
+            if model_weights_file.stat().st_size >= 1024**2:
+                model_weights_file.unlink()
+        logger.debug("CLOSING === Freed space by deleting model weights === CLOSING")
 
 
 class ClassificationModule(LightningModule):

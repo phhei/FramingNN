@@ -208,6 +208,14 @@ def ensure_list(x: Union[T, List[T]]) -> List[T]:
     show_default=True,
     help="Should the training be stopped early if the validation loss does not decrease anymore?"
 )
+@click.option(
+    "--keep_model_weights", "-save",
+    default=False,
+    is_flag=True,
+    show_default=True,
+    help="Should the model weights be stored after evaluation? Might be useful for further individual analysis, "
+         "but could consume a lot of disk space. Small models (<1MB) are stored by default."
+)
 @logger.catch(level="CRITICAL", message="An error occurred during the main process")
 def run(runs: int,
         output_root_path: Optional[Path],
@@ -228,7 +236,8 @@ def run(runs: int,
         learning_rate: float,
         hard_parameter_sharing: bool,
         soft_parameter_sharing: Optional[float],
-        early_stopping: bool = True) -> None:
+        early_stopping: bool = True,
+        keep_model_weights: bool = False) -> None:
     logger.debug("Let's get started!")
 
     # Variable type conversion
@@ -482,7 +491,8 @@ def run(runs: int,
                 test_data=final_processed_data.get("test"),
                 root_path=output_root_path,
                 metric_file_name="+".join(map(lambda p: p.stem.lower(), test_data_path)),
-                monitoring_metric=f"val_f1Micro_{final_models[0].task_name}" if early_stopping else None
+                monitoring_metric=f"val_f1Micro_{final_models[0].task_name}" if early_stopping else None,
+                free_space=not keep_model_weights
             )
             logger.success("DONE (Run {}/{})", current_run, runs)
         except Exception:
