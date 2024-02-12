@@ -469,8 +469,9 @@ def run(runs: int,
                     "+".join(map(lambda p: p.stem.lower(), train_data_path))
                 ).joinpath(
                     "{}2{}{}".format(
-                        "_".join(fct_input_process),
-                        "_".join(fct_output_process),
+                        "__".join(fct_input_process),
+                        "Wtopics" if process_topics else "WOtopics",
+                        "__".join(fct_output_process),
                         "" if max_length is None else f"_max{max_length}tokens"
                     )
                 ).joinpath(
