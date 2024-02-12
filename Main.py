@@ -468,7 +468,7 @@ def run(runs: int,
                 output_root_path = Path(".out").joinpath(
                     "+".join(map(lambda p: p.stem.lower(), train_data_path))
                 ).joinpath(
-                    "{}2{}{}".format(
+                    "{}{}2{}{}".format(
                         "__".join(fct_input_process),
                         "Wtopics" if process_topics else "WOtopics",
                         "__".join(fct_output_process),
