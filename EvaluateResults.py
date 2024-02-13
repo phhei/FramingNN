@@ -37,13 +37,21 @@ from loguru import logger
               default=False,
               show_default=True,
               help="Ignore runs without existing model weights (RECOMMENDED)")
+@click.option("--latex_friendly", "-latex", "-x",
+              is_flag=True,
+              default=False,
+              show_default=True,
+              help="Format the output in a LaTeX-friendly way (copy-paste to a table)")
 def evaluate(root_path: Path, stats_file_pattern: str, ignore_runs_wo_existing_model_weights: bool, log_level: str,
-             log_single_class_stats: bool):
+             log_single_class_stats: bool, latex_friendly: bool):
     if log_level != "DEBUG":
         logger.remove()
         logger.add(sink=sys.stdout, level=log_level, colorize=True)
         logger.add(
-            sink=root_path.joinpath("_EvaluateResults{}.log".format("-detailed" if log_single_class_stats else "")),
+            sink=root_path.joinpath("_EvaluateResults{}{}.log".format(
+                "-detailed" if log_single_class_stats else "",
+                "-latex" if latex_friendly else ""
+            )),
             level=log_level, rotation="10 MB", colorize=False, mode="w"
         )
 
@@ -91,8 +99,12 @@ def evaluate(root_path: Path, stats_file_pattern: str, ignore_runs_wo_existing_m
                              experiment_name, sum(score_values), len(score_values))
                 stats[experiment_name][score_name] = sum(score_values)
                 continue
-            stats[experiment_name][score_name] = \
-                f"{min(score_values):.1%}--{sum(score_values) / len(score_values):.2%}--{max(score_values):.1%}"
+            if latex_friendly:
+                stats[experiment_name][score_name] = \
+                    f"${sum(score_values) / len(score_values):.2%}_{{{min(score_values):.1%}}}^{{{max(score_values):.1%}}}$"
+            else:
+                stats[experiment_name][score_name] = \
+                    f"{min(score_values):.1%}--{sum(score_values) / len(score_values):.2%}--{max(score_values):.1%}"
 
     logger.success(json_dumps(obj=stats, indent=2, sort_keys=True))
 
