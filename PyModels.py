@@ -464,7 +464,7 @@ class MultiClassificationModule(LightningModule):
             if _loss is not None:
                 self.log(name="train_loss_m{}".format(_i), value=_loss, prog_bar=False, logger=True, on_epoch=True)
 
-            logger.debug("Module {} output: {} (loss: {})", _i, _output.shape, _loss)
+            logger.trace("Module {} output: {} (loss: {})", _i, _output.shape, _loss)
             outputs.append(_output)
             if _loss is not None:
                 losses.append(_loss if self.task_weighting is None else (_loss * self.task_weighting[_i]))
@@ -473,7 +473,8 @@ class MultiClassificationModule(LightningModule):
         if self.soft_parameter_sharing is not None:
             logger.trace("Using soft parameter sharing, increase {}", loss)
 
-            for m1, m2 in combinations(self.classification_modules, 2):
+            for m1, m2 in combinations([cm.core_model if isinstance(cm, ClassificationModule) else cm
+                                        for cm in self.classification_modules], 2):
                 assert isinstance(m1, torch.nn.Module) and isinstance(m2, torch.nn.Module)
                 for p1, p2 in zip(m1.parameters(recurse=True), m2.parameters(recurse=True)):
                     assert isinstance(p1, torch.Tensor) and isinstance(p2, torch.Tensor)

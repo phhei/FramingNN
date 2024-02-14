@@ -310,9 +310,9 @@ def run(runs: int,
     # Preprocess data
     logger.debug("Preprocess data")
 
-    def process_data(f_fct_input_process, f_fct_output_process, f_current_run: int = 1) -> Tuple[Dict[str, Dataset], int]:
+    def process_data(f_fct_input_process, f_fct_output_process, f_current_run: int = 1) -> Tuple[Dict[str, Dataset], List[int]]:
         f_processed_data = defaultdict(list)
-        f_num_classes = None
+        f_num_classes = []
         for i, (fct_in, fct_out) in enumerate(zip(f_fct_input_process, f_fct_output_process)):
             if fct_in not in input_fct_mapper or fct_out not in target_fct_mapper:
                 raise ValueError(f"Unknown function {fct_in}/{fct_out}")
@@ -338,22 +338,22 @@ def run(runs: int,
             if fct_out == "categorical" or fct_out == "categorical_all":
                 fct_out_params["categories"] = \
                     {name: i for i, name in enumerate(Frames.media_frames_set.frame_names + ["__UNKNOWN__"])}
-                f_num_classes = len(Frames.media_frames_set.frame_names)+1
+                f_num_classes.append(len(Frames.media_frames_set.frame_names)+1)
             elif fct_out == "categorical_all_mf_wo_other":
                 fct_out_params["categories"] = \
                     {name: i for i, name in enumerate(Frames.media_frames_set.frame_names)}
-                f_num_classes = len(Frames.media_frames_set.frame_names)
+                f_num_classes.append(len(Frames.media_frames_set.frame_names))
             elif fct_out == "categorical_most_frequent":
                 fct_out_params["categories"] = \
                     {name: i for i, name in enumerate(Frames.most_frequent_media_frames_set.frame_names)}
-                f_num_classes = len(Frames.most_frequent_media_frames_set.frame_names)
+                f_num_classes.append(len(Frames.most_frequent_media_frames_set.frame_names))
             elif fct_out.startswith("cluster"):
                 if fct_out == "cluster_mediaframes":
-                    f_num_classes = 15
+                    f_num_classes.append(15)
                     cluster_file = Path("clusters/mediaframesx300d_semantic_15c.pkl")
                 else:
-                    f_num_classes = int(fct_out.split("_")[1]) if "_" in fct_out else 15
-                    cluster_file = Path("clusters/9860x300d_semantic_{}c_{}.pkl".format(f_num_classes, f_current_run))
+                    f_num_classes.append(int(fct_out.split("_")[1]) if "_" in fct_out else 15)
+                    cluster_file = Path("clusters/9860x300d_semantic_{}c_{}.pkl".format(f_num_classes[-1], f_current_run))
                 logger.info("Load cluster file for {}: {}", fct_out, cluster_file.absolute())
                 fct_out_params["cluster"] = Utils.UserLabelCluster.from_pickle(
                     path=cluster_file,
@@ -378,7 +378,8 @@ def run(runs: int,
         for split, datas in f_processed_data.items():
             logger.debug("Finish data-split {}", split)
             f_final_processed_data[split] = finish_datasets(datasets=datas, batch_size=batch_size, shuffle=False)
-        logger.success("Data is ready! Proposed classes: {}", f_num_classes or "unknown")
+        logger.success("Data is ready! Proposed classes: {}",
+                       "|".join(map(str, f_num_classes)) if len(f_num_classes) >= 1 else "unknown")
         return f_final_processed_data, f_num_classes
 
     final_processed_data, num_classes = process_data(
@@ -441,7 +442,7 @@ def run(runs: int,
             logger.debug("Prepare the model for training")
             final_models = [PyModels.ClassificationModule(
                 core_model=core_models[i],
-                num_classes=num_classes,
+                num_classes=num_classes[i],
                 learning_rate=learning_rate,
                 task_name=f"IN{fct_in_name.lower()}MODEL{model.lower()}OUT{fct_out_name.lower()}_{i}_Run{current_run}"
             ) for i, (fct_in_name, fct_out_name, core_model) in enumerate(
