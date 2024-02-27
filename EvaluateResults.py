@@ -5,6 +5,7 @@ from json import load as json_load, dumps as json_dumps
 from re import sub as re_sub
 
 import click
+import numpy
 from loguru import logger
 
 
@@ -36,7 +37,7 @@ from loguru import logger
               is_flag=True,
               default=False,
               show_default=True,
-              help="Ignore runs without existing model weights (RECOMMENDED)")
+              help="Logs single class stats (e.g. precision, recall, f1-score for each class) as well, verbose output")
 @click.option("--latex_friendly", "-latex", "-x",
               is_flag=True,
               default=False,
@@ -101,7 +102,13 @@ def evaluate(root_path: Path, stats_file_pattern: str, ignore_runs_wo_existing_m
                 continue
             if latex_friendly:
                 stats[experiment_name][score_name] = \
-                    f"${sum(score_values) / len(score_values):.2%}_{{{min(score_values):.1%}}}^{{{max(score_values):.1%}}}$"
+                    (f"${sum(score_values) / len(score_values):.2%}"
+                     f"_{{{min(score_values):.1%}}}^{{{max(score_values):.1%}}}$").replace("%", "")
+            elif log_single_class_stats:
+                score_values_numpy: numpy.ndarray = numpy.fromiter(score_values, dtype=float)
+                stats[experiment_name][score_name] = \
+                    (f"{score_values_numpy.mean():>08.3%}+-{score_values_numpy.std():>06.2%} "
+                     f"[{' '.join(map(lambda v: f'{v:>05.1%}', score_values))}]")
             else:
                 stats[experiment_name][score_name] = \
                     f"{min(score_values):.1%}--{sum(score_values) / len(score_values):.2%}--{max(score_values):.1%}"
